@@ -54,9 +54,9 @@ order-sensitive runbook in `deploy/README.md` into a handful of health-gated com
 ## Container images used
 
 The CLI **never builds images inside the cluster** — it applies manifests and Kubernetes pulls
-the images. There are two sources.
+the images. **All images are public**, so the default path needs no registry auth.
 
-### Application images (private — `ghcr`)
+### Application images (`ghcr`, public)
 
 | Image | Component |
 |---|---|
@@ -65,45 +65,66 @@ the images. There are two sources.
 | `ghcr.io/optikklabs/web:latest` | web |
 | `ghcr.io/ramantayal12/mq:latest` | mq |
 
-While these ghcr packages are **private**, pass **`--load-local-images`** to `up --target local`.
-The CLI runs `podman save -m` on the four images already present on the host and imports the
-archive into the kind node via the **kind Go library** (`nodeutils.LoadImageArchive`) — this
-avoids the containerd-config-version mismatch you get from the external `kind load` CLI.
+These ghcr packages are public — Kubernetes pulls them directly, no credentials required.
 
-Once the packages are public, drop the flag and Kubernetes pulls them directly.
+**Optional `--load-local-images` (local target):** for air-gapped/offline runs or when testing a
+locally-built image, pass this flag to `up --target local`. The CLI runs `podman save -m` on the
+four images already present on the host and imports the archive into the kind node via the **kind
+Go library** (`nodeutils.LoadImageArchive`) — which also sidesteps the containerd-config-version
+mismatch of the external `kind load` CLI. Not needed for a normal run.
 
-### Upstream images (public — pulled directly)
+### Upstream images (public)
 
-`clickhouse`, `mariadb`, `otel/opentelemetry-collector-contrib`, `traefik`. These are never
-loaded locally; the nodes pull them from their public registries.
+| Image | Component |
+|---|---|
+| `clickhouse/clickhouse-server:26.6` | clickhouse |
+| `mariadb:11.4` | mariadb |
+| `otel/opentelemetry-collector-contrib:0.155.0` | otel-collector (per tenant) |
+| `traefik:v3.3` | traefik |
+| `busybox:1.36` | init containers (ingest/query) |
+
+Pulled directly from their public registries; never loaded locally.
 
 ---
 
 ## Architecture
 
-```
-                       ┌─────────────────────────────── optikk namespace ───────────────────────────────┐
-                       │                                                                                 │
-  OTLP  x-api-key ───► │  ┌─────────┐   x-api-key route    ┌───────────────────┐                         │
-  (trace)              │  │ traefik │ ───────────────────► │ otel-collector-<t> │ ─┐  (one per tenant)   │
-                       │  │ ingress │                      └───────────────────┘  │                      │
-  Browser  / ───────►  │  │         │ ─► web (UI)                                  ▼                      │
-  API      /api ────►  │  │         │ ─► query (API+auth) ◄──────────────┐   ┌──────────┐   ┌──────────┐ │
-  OTLP     :4318 ───►  │  │         │ ─────────────────────────────────► │   │  ingest  │ ─►│    mq    │ │
-                       │  └─────────┘                                    │   └──────────┘   └────┬─────┘ │
-                       │                                                 │        │ validates     │       │
-                       │                                                 │        ▼ key           ▼       │
-                       │                        ┌──────────┐        ┌────┴─────┐            ┌───────────┐ │
-                       │                        │ mariadb  │◄───────┤  query   │            │ clickhouse│ │
-                       │                        │ teams +  │        │  seeds   │            │  optikk.  │ │
-                       │                        │ identity │        │  admin   │            │  spans    │ │
-                       │                        └──────────┘        └──────────┘            └───────────┘ │
-                       └─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    browser([Browser]) -->|/ , /api| traefik
+    otlp([OTLP client]) -->|x-api-key| traefik
+    otlp -->|:4318 OTLP| traefik
 
-Target = local (kind on Podman)          |   Target = gcp (GKE)
-  host :8080  -> traefik web              |     Traefik Service -> LoadBalancer external IP
-  host :4318  -> OTLP/HTTP ingest         |     mq + ClickHouse cold tier -> GCS buckets (HMAC)
+    subgraph ns["optikk namespace"]
+        traefik["traefik<br/>(ingress)"]
+        web["web<br/>(dashboard UI)"]
+        query["query<br/>(API + auth)"]
+        collector["otel-collector-&lt;tenant&gt;<br/>(one per tenant)"]
+        ingest["ingest"]
+        mq["mq<br/>(queue)"]
+        clickhouse[("clickhouse<br/>optikk.spans")]
+        mariadb[("mariadb<br/>teams + identity")]
+
+        traefik -->|/| web
+        traefik -->|/api, /health| query
+        traefik -->|x-api-key route| collector
+        collector --> ingest
+        traefik -->|:4318| ingest
+        ingest -->|validate key| mariadb
+        ingest --> mq
+        mq --> clickhouse
+        query -->|read spans| clickhouse
+        query -->|seed admin, teams| mariadb
+    end
 ```
+
+**Per-target ingress / storage differences:**
+
+| | Target = local (kind on Podman) | Target = gcp (GKE) |
+|---|---|---|
+| Query/UI ingress | host `:8080` → Traefik web | Traefik Service → LoadBalancer external IP |
+| OTLP ingress | host `:4318` → ingest | LoadBalancer IP `:4318` |
+| mq + ClickHouse cold tier | local PVCs | GCS buckets (HMAC keys) |
 
 ---
 
@@ -111,10 +132,24 @@ Target = local (kind on Podman)          |   Target = gcp (GKE)
 
 `verify` exercises this exact path end-to-end.
 
-```
-client ──OTLP POST /v1/traces (x-api-key: KEY)──► traefik
-   traefik ──routes by x-api-key──► otel-collector-<tenant>
-      collector ──► ingest ──validates KEY against mariadb.teams──► mq ──► clickhouse (optikk.spans)
+```mermaid
+sequenceDiagram
+    participant C as client
+    participant T as traefik
+    participant O as otel-collector-&lt;tenant&gt;
+    participant I as ingest
+    participant M as mariadb
+    participant Q as mq
+    participant CH as clickhouse
+
+    C->>T: OTLP POST /v1/traces (x-api-key: KEY)
+    T->>O: route by x-api-key
+    O->>I: forward spans
+    I->>M: validate KEY against teams
+    M-->>I: tenant ok
+    I->>Q: enqueue spans
+    Q->>CH: write to optikk.spans
+    Note over C,CH: verify then polls SELECT count() FROM optikk.spans (async, ~30s)
 ```
 
 Two gotchas the CLI accounts for:
@@ -182,8 +217,8 @@ go install .                  # -> $GOBIN/optikk
 ## Quick start (local)
 
 ```bash
-# 1. Provision cluster + full stack (private images loaded from the host)
-optikk up --load-local-images
+# 1. Provision cluster + full stack (public images pulled by Kubernetes)
+optikk up                                # add --load-local-images only for offline/local builds
 
 # 2. Health + trace roundtrip against the default tenant key
 optikk verify
@@ -336,7 +371,7 @@ pro/optikk/
 | Symptom | Cause / fix |
 |---|---|
 | `up` refuses at precheck | Podman machine below floor or not rootful/running — run the printed `podman machine set ...` (or use `--manage-podman`). |
-| Image `not present locally` / `unknown containerd config version` | Use `--load-local-images`; the CLI loads via the kind library, not the `kind` CLI. Ensure the 4 app images exist on the host (`podman images`). |
+| Offline / `unknown containerd config version` on manual `kind load` | Images are public so a normal `up` pulls them; for air-gapped runs use `--load-local-images` (loads via the kind library, and the 4 app images must exist on the host — `podman images`). |
 | `verify` span count stays 0 | No team matches the tenant key on a fresh cluster — `team create` then `tenant onboard --key`. If a key was tried too early, `kubectl -n optikk rollout restart deploy/ingest` clears the 5-min negative cache. |
 | `login` 405 | The query API is under `/api` (Traefik `PathPrefix(/api)`); the client already targets `<base>/api`. |
 | `team`/`admin` commands say no session | Run `optikk admin login` first (caches JWT at `~/.optikk/token.json`). |
