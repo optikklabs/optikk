@@ -1,0 +1,11 @@
+# Reusable otel-collector component, consumed once per tenant from deploy/tenants/<slug>/
+# (no longer included directly by deploy/base/kustomization.yaml — see deploy/README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml

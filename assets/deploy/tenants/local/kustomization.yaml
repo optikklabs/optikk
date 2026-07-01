@@ -1,0 +1,26 @@
+# Default tenant for local (kind) dev — keeps the existing single-key local workflow
+# working out of the box. Copied from deploy/tenants/_template with real values filled in.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: optikk
+
+resources:
+  - ../../base/otel-collector
+  - ingressroute.yaml
+
+nameSuffix: "-local"
+
+labels:
+  - pairs:
+      tenant: "local"
+    includeSelectors: true
+
+patches:
+  - target:
+      kind: Secret
+      name: otel-collector-secret
+    patch: |-
+      - op: replace
+        path: /stringData/api-key
+        value: c3448fae

@@ -1,0 +1,7 @@
+# Cloud: expose Traefik through a GCP L4 load balancer (external IP).
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+spec:
+  type: LoadBalancer

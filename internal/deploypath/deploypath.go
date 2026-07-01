@@ -1,36 +1,24 @@
-// Package deploypath locates the deploy/ kustomize tree the CLI renders.
+// Package deploypath resolves the deploy/ kustomize tree the CLI renders.
 package deploypath
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/optikklabs/optikk/assets"
 )
 
 // marker is a path that must exist inside a valid deploy/ directory.
 var marker = filepath.Join("overlays", "local", "kustomization.yaml")
 
-// Resolve returns the absolute deploy/ path. An explicit override wins;
-// otherwise it walks up from the cwd looking for a sibling deploy/ dir.
+// Resolve returns the absolute deploy/ path. An explicit override wins (dev
+// against a working tree); otherwise the embedded tree is materialized to disk.
 func Resolve(override string) (string, error) {
 	if override != "" {
 		return validate(override)
 	}
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for {
-		candidate := filepath.Join(dir, "deploy")
-		if isDeployDir(candidate) {
-			return candidate, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("deploy/ not found above %q; pass --deploy-dir", mustWd())
-		}
-		dir = parent
-	}
+	return assets.Materialize()
 }
 
 // validate confirms an explicit override actually points at a deploy/ tree.
@@ -48,9 +36,4 @@ func validate(path string) (string, error) {
 func isDeployDir(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, marker))
 	return err == nil
-}
-
-func mustWd() string {
-	wd, _ := os.Getwd()
-	return wd
 }

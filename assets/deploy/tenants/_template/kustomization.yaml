@@ -1,0 +1,34 @@
+# Template for a per-tenant otel-collector. To onboard a new tenant:
+#   1. cp -r deploy/tenants/_template deploy/tenants/<slug>
+#   2. Replace every <slug> and <TEAM_SLUG_KEY> below and in ingressroute.yaml
+#      with the tenant's real slug and the api_key POST /v1/teams returned.
+#   3. Apply the real key out-of-band (do NOT commit it):
+#        kubectl create secret generic otel-collector-<slug>-secret -n optikk \
+#          --from-literal=api-key='<real key>' --dry-run=client -o yaml | kubectl apply -f -
+#   4. Add "../../tenants/<slug>" to the target overlay's resources: list.
+#   5. kubectl apply -k deploy/overlays/<env>
+# See deploy/README.md "Onboarding a tenant" for the full runbook, including offboarding.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: optikk
+
+resources:
+  - ../../base/otel-collector
+  - ingressroute.yaml
+
+nameSuffix: "-<slug>"
+
+labels:
+  - pairs:
+      tenant: "<slug>"
+    includeSelectors: true
+
+patches:
+  - target:
+      kind: Secret
+      name: otel-collector-secret
+    patch: |-
+      - op: replace
+        path: /stringData/api-key
+        value: REPLACE_WITH_<TEAM_SLUG_KEY>

@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# GKE: SSD persistent disks (premium-rwo), Traefik via LoadBalancer, mq + ClickHouse
+# cold-tier backed by GCS, larger stateful footprints.
+# The GCS HMAC secrets (mq-gcs-secret, ch-gcs-secret) are created out-of-band — see
+# secrets-example/ and the README. They are NOT part of this kustomization.
+#
+# Tenants: list of onboarded otel-collector tenants for this env — add
+# "../../tenants/<slug>" per tenant per deploy/README.md "Onboarding a tenant".
+# None onboarded by default; add entries here as teams are provisioned.
+resources:
+  - ../../base
+
+patches:
+  - path: patches/clickhouse-gcs.yaml
+  - path: patches/mq-gcs.yaml
+  - path: patches/mariadb.yaml
+  - path: patches/traefik-service.yaml

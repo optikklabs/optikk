@@ -1,0 +1,20 @@
+# Local: expose Traefik via fixed NodePorts so kind extraPortMappings reach it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+spec:
+  type: NodePort
+  ports:
+    - name: web
+      port: 80
+      nodePort: 30080
+    - name: websecure
+      port: 443
+      nodePort: 30443
+    - name: otlp-grpc
+      port: 4317
+      nodePort: 30417
+    - name: otlp-http
+      port: 4318
+      nodePort: 30418

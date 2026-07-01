@@ -1,0 +1,21 @@
+# Headless Service gives a stable DNS name (clickhouse) for the StatefulSet pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  clusterIP: None
+  selector:
+    app: clickhouse
+  ports:
+    - name: native
+      port: 9000
+      targetPort: 9000
+    - name: http
+      port: 8123
+      targetPort: 8123
+    - name: prometheus
+      port: 9363
+      targetPort: 9363

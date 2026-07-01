@@ -1,0 +1,21 @@
+# Cloud: SSD persistent disk + larger footprint.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mariadb
+spec:
+  template:
+    spec:
+      containers:
+        - name: mariadb
+          resources:
+            requests: { cpu: "1", memory: 4Gi }
+            limits: { memory: 4Gi }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: premium-rwo
+        resources:
+          requests:
+            storage: 20Gi

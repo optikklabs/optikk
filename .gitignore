@@ -1,5 +1,8 @@
 # Built binary
 /optikk
 
+# goreleaser output
+/dist/
+
 # Local CLI state cache
 .optikk/

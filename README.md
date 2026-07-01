@@ -1,12 +1,13 @@
 # optikk
 
 A single CLI to provision the **entire Optikk stack from prebuilt container images** and
-operate it — on a **local kind cluster** or on **Google Cloud (GKE)**. It turns the manual,
-order-sensitive runbook in `deploy/README.md` into a handful of health-gated commands.
+operate it — on a **local kind cluster** or on **Google Cloud (GKE)**. It turns a manual,
+order-sensitive runbook into a handful of health-gated commands.
 
 - **Module:** `github.com/optikklabs/optikk` · **Go:** 1.26 · **CLI:** Cobra
-- `deploy/` stays the single source of manifest truth — the CLI **renders** it (kustomize Go
-  API) and **server-side-applies** it (client-go); it never forks the manifests.
+- The Kubernetes manifests are **embedded** in the binary (`assets/deploy`, via `go:embed`) —
+  the CLI **renders** them (kustomize Go API) and **server-side-applies** them (client-go), so
+  it is fully self-contained with no external manifest tree to clone.
 - Environment is a **`--target local|gcp` flag**, not a subcommand. The top-level verbs
   (`up`, `down`, `status`, `verify`, `tenant`, `admin`, `team`) provision infra from scratch.
 - **Native Go SDKs** throughout (kind lib, client-go SSA, kustomize, GKE + GCS SDKs). The only
@@ -196,21 +197,27 @@ gcp deletes the GKE cluster and the buckets (unless `--keep-buckets`).
 
 ---
 
-## Install / build
+## Install
 
-Requires Go 1.26+. Local target additionally needs **Podman** (rootful machine, ≥8 GiB RAM);
-GCP target needs **Application Default Credentials** (`gcloud auth application-default login`).
+The binary is **self-contained** — the Kubernetes manifests are embedded, so `optikk` runs
+from any directory with no external files. Local target additionally needs **Podman** (rootful
+machine, ≥8 GiB RAM); GCP target needs **Application Default Credentials**
+(`gcloud auth application-default login`).
 
 ```bash
-cd pro/optikk
-go build -o optikk .          # build the binary
+# Homebrew (macOS)
+brew install optikklabs/tap/optikk
+
+# Go (any platform, Go 1.26+)
+go install github.com/optikklabs/optikk@latest
+
+# Raw binary (macOS/Linux, amd64/arm64) — from the GitHub Release
+curl -L https://github.com/optikklabs/optikk/releases/latest/download/optikk_$(uname -s)_$(uname -m).tar.gz | tar xz
 ./optikk --help
-# or install onto PATH:
-go install .                  # -> $GOBIN/optikk
 ```
 
-`deploy/` is auto-detected by walking up from the current directory (looks for
-`deploy/overlays/local/kustomization.yaml`); override with `--deploy-dir`.
+Build from source: `go build -o optikk .`. Developing against a live manifest tree instead of
+the embedded copy? Point at it with `--deploy-dir PATH`.
 
 ---
 
@@ -334,11 +341,12 @@ mq 1 vCPU / 2 GiB (data in GCS). Stateless workloads scale via HPA.
 ```
 pro/optikk/
   main.go                 cobra Execute()
+  assets/                 embedded deploy/ kustomize tree (go:embed) + Materialize()
   cmd/                    one file per command; root.go wires target + persistent flags
     up down status verify tenant admin team config version   (+ gcpflags, root)
   internal/
     config/               viper: flags -> optikk.yaml/~/.optikk -> gcloud fallback
-    deploypath/           locate deploy/ (walk up + --deploy-dir override)
+    deploypath/           resolve manifests (embedded assets/deploy, or --deploy-dir override)
     hostexec/             podman machine precheck (+ opt-in manage), pids-limit
     localcluster/         kind create/delete/load via sigs.k8s.io/kind/pkg/cluster
     k8sapply/             kustomize render -> client-go SSA (CRD-ordered) + rollout waits,

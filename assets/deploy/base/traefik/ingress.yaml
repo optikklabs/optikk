@@ -1,0 +1,44 @@
+# Edge routing: query API + OTLP (gRPC/HTTP), each rate-limited.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ratelimit
+spec:
+  rateLimit:
+    average: 100
+    burst: 50
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: query
+spec:
+  entryPoints: [web, websecure]
+  routes:
+    # API surfaces go to query. More specific than `/`, so Traefik prioritises these.
+    - match: PathPrefix(`/api`) || PathPrefix(`/swagger`) || PathPrefix(`/health`)
+      kind: Rule
+      services:
+        - name: query
+          port: 19090
+      middlewares:
+        - name: ratelimit
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: web
+spec:
+  entryPoints: [web, websecure]
+  routes:
+    # Everything else is the SPA.
+    - match: PathPrefix(`/`)
+      kind: Rule
+      services:
+        - name: web
+          port: 8080
+      middlewares:
+        - name: ratelimit
+# otlp-http / otlp-grpc IngressRoutes are no longer defined here — otel-collector is
+# deployed per tenant (deploy/tenants/<slug>), each with its own IngressRoute matching
+# Header(`x-api-key`, ...) on these same entrypoints. See deploy/README.md.

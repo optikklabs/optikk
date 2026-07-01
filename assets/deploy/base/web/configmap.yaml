@@ -1,0 +1,22 @@
+# Minimal SPA-serving nginx config. The browser loads the app here and calls
+# /api,/swagger directly — Traefik routes those to query, so web does no proxying.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-nginx
+data:
+  default.conf: |
+    server {
+        listen 8080;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
