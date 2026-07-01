@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/optikklabs/optikk/internal/config"
@@ -14,6 +13,7 @@ func newUpCmd(app *App) *cobra.Command {
 		managePodman    bool
 		loadLocalImages bool
 		timeout         time.Duration
+		g               gcpFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "up",
@@ -30,7 +30,9 @@ func newUpCmd(app *App) *cobra.Command {
 				})
 				return p.Up(cmd.Context())
 			case config.TargetGCP:
-				return fmt.Errorf("up --target gcp is not implemented yet (M3)")
+				opts := g.options(app, timeout)
+				opts.Out = cmd.OutOrStdout()
+				return provision.NewGCP(opts).Up(cmd.Context())
 			}
 			return nil
 		},
@@ -38,5 +40,6 @@ func newUpCmd(app *App) *cobra.Command {
 	cmd.Flags().BoolVar(&managePodman, "manage-podman", false, "let the CLI resize/start the Podman machine instead of instructing")
 	cmd.Flags().BoolVar(&loadLocalImages, "load-local-images", false, "build ingest/query and load them into kind (private ghcr packages)")
 	cmd.Flags().DurationVar(&timeout, "timeout", 10*time.Minute, "rollout/create timeout")
+	g.register(cmd)
 	return cmd
 }

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -14,6 +15,12 @@ import (
 
 // Render builds a kustomize overlay from disk into a list of objects.
 func Render(overlayDir string) ([]*unstructured.Unstructured, error) {
+	return RenderSubst(overlayDir, nil)
+}
+
+// RenderSubst builds an overlay and applies literal string replacements to the
+// rendered YAML before decoding (used to inject GCS bucket names).
+func RenderSubst(overlayDir string, replacer *strings.Replacer) ([]*unstructured.Unstructured, error) {
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	resMap, err := k.Run(filesys.MakeFsOnDisk(), overlayDir)
 	if err != nil {
@@ -22,6 +29,9 @@ func Render(overlayDir string) ([]*unstructured.Unstructured, error) {
 	out, err := resMap.AsYaml()
 	if err != nil {
 		return nil, err
+	}
+	if replacer != nil {
+		out = []byte(replacer.Replace(string(out)))
 	}
 	return decode(out)
 }

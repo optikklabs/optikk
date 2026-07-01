@@ -35,11 +35,12 @@ type Config struct {
 
 // GCP holds Google Cloud provisioning settings.
 type GCP struct {
-	Project     string `mapstructure:"project"`
-	Region      string `mapstructure:"region"`
-	MQBucket    string `mapstructure:"mq_bucket"`
-	CHBucket    string `mapstructure:"ch_bucket"`
-	MachineType string `mapstructure:"machine_type"`
+	Project        string `mapstructure:"project"`
+	Region         string `mapstructure:"region"`
+	MQBucket       string `mapstructure:"mq_bucket"`
+	CHBucket       string `mapstructure:"ch_bucket"`
+	MachineType    string `mapstructure:"machine_type"`
+	HMACServiceAcc string `mapstructure:"hmac_service_account"`
 }
 
 // Admin holds the platform super-admin credentials seeded into query.

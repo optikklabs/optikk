@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"time"
 
 	"github.com/optikklabs/optikk/internal/config"
 	"github.com/optikklabs/optikk/internal/provision"
@@ -9,7 +9,10 @@ import (
 )
 
 func newDownCmd(app *App) *cobra.Command {
-	var keepCluster bool
+	var (
+		keepCluster bool
+		g           gcpFlags
+	)
 	cmd := &cobra.Command{
 		Use:   "down",
 		Short: "Tear down the stack and the cluster it created for --target",
@@ -23,11 +26,14 @@ func newDownCmd(app *App) *cobra.Command {
 				})
 				return p.Down(cmd.Context())
 			case config.TargetGCP:
-				return fmt.Errorf("down --target gcp is not implemented yet (M3)")
+				opts := g.options(app, 20*time.Minute)
+				opts.Out = cmd.OutOrStdout()
+				return provision.NewGCP(opts).Down(cmd.Context())
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&keepCluster, "keep-cluster", false, "delete the stack but keep the kind cluster")
+	g.register(cmd)
 	return cmd
 }

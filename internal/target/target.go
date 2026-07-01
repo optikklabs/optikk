@@ -2,9 +2,12 @@
 package target
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/optikklabs/optikk/internal/config"
+	"github.com/optikklabs/optikk/internal/gcp"
+	"github.com/optikklabs/optikk/internal/k8sapply"
 	"github.com/optikklabs/optikk/internal/localcluster"
 	"k8s.io/client-go/rest"
 )
@@ -27,7 +30,19 @@ func Resolve(cfg config.Config) (*Conn, error) {
 		// kind maps host 8080 -> Traefik web, 4318 -> OTLP/HTTP.
 		return &Conn{REST: rc, APIBase: "http://localhost:8080", OTLPBase: "http://localhost:4318"}, nil
 	case config.TargetGCP:
-		return nil, fmt.Errorf("target gcp is not implemented yet (M3)")
+		spec := gcp.ClusterSpec{Project: cfg.GCP.Project, Region: cfg.GCP.Region, Name: config.ClusterName}
+		if spec.Project == "" || spec.Region == "" {
+			return nil, fmt.Errorf("gcp target needs --project and --region (or optikk.yaml)")
+		}
+		rc, err := gcp.RESTConfig(context.Background(), spec)
+		if err != nil {
+			return nil, fmt.Errorf("gcp cluster not reachable: %w", err)
+		}
+		ip, err := k8sapply.TraefikLoadBalancerIP(context.Background(), rc, config.Namespace)
+		if err != nil || ip == "" {
+			return nil, fmt.Errorf("traefik load balancer IP not available yet: %w", err)
+		}
+		return &Conn{REST: rc, APIBase: "http://" + ip, OTLPBase: "http://" + ip + ":4318"}, nil
 	}
 	return nil, fmt.Errorf("unknown target %q", cfg.Target)
 }
