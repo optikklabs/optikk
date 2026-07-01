@@ -13,22 +13,6 @@ func notImplemented(milestone string) func(*cobra.Command, []string) error {
 	}
 }
 
-func newUpCmd(_ *App) *cobra.Command {
-	return &cobra.Command{
-		Use:   "up",
-		Short: "Provision infra from scratch and deploy the full stack for --target",
-		RunE:  notImplemented("M1/M3"),
-	}
-}
-
-func newDownCmd(_ *App) *cobra.Command {
-	return &cobra.Command{
-		Use:   "down",
-		Short: "Tear down the stack and the cluster it created for --target",
-		RunE:  notImplemented("M1/M3"),
-	}
-}
-
 func newStatusCmd(_ *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
