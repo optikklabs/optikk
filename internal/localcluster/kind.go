@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster"
+	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
 	"sigs.k8s.io/kind/pkg/cmd"
 )
 
@@ -68,4 +69,26 @@ func (c *Cluster) RESTConfig() (*rest.Config, error) {
 // NodeContainer is the Podman container name of the control-plane node.
 func (c *Cluster) NodeContainer() string {
 	return fmt.Sprintf("%s-control-plane", c.Name)
+}
+
+// LoadImageArchive imports a (multi-image) tar into every node's containerd.
+// Using the kind library keeps the node's containerd config version in sync
+// with how the cluster was created (the external kind CLI may differ).
+func (c *Cluster) LoadImageArchive(archivePath string) error {
+	nodeList, err := c.provider.ListNodes(c.Name)
+	if err != nil {
+		return err
+	}
+	for _, n := range nodeList {
+		f, err := os.Open(archivePath)
+		if err != nil {
+			return err
+		}
+		err = nodeutils.LoadImageArchive(n, f)
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("load image archive into %s: %w", n.String(), err)
+		}
+	}
+	return nil
 }

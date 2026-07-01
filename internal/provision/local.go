@@ -50,8 +50,8 @@ func (l *Local) Up(ctx context.Context) error {
 	}
 
 	if l.opts.LoadLocalImages {
-		step(w, "building and loading local app images")
-		if err := l.loadLocalImages(ctx); err != nil {
+		step(w, "loading local app images into kind")
+		if err := l.loadLocalImages(ctx, kc); err != nil {
 			return err
 		}
 	}
@@ -114,25 +114,27 @@ func (l *Local) Down(ctx context.Context) error {
 	return applier.Delete(ctx, objs)
 }
 
-// loadLocalImages builds ingest/query and loads them into the kind node. This
-// step is inherently host/CLI-shaped (kind load), so it shells out.
-func (l *Local) loadLocalImages(ctx context.Context) error {
-	repoRoot := filepath.Dir(l.opts.DeployDir)
-	images := map[string]string{
-		"ghcr.io/optikklabs/ingest:latest": filepath.Join(repoRoot, "ingest"),
-		"ghcr.io/optikklabs/query:latest":  filepath.Join(repoRoot, "query"),
+// localImages are the private app images kind must have loaded when the ghcr
+// packages aren't public. clickhouse/mariadb/traefik/otel pull from public
+// registries and are not listed here.
+var localImages = []string{
+	"ghcr.io/optikklabs/ingest:latest",
+	"ghcr.io/optikklabs/query:latest",
+	"ghcr.io/optikklabs/web:latest",
+	"ghcr.io/ramantayal12/mq:latest",
+}
+
+// loadLocalImages saves the locally-present app images (podman, host-level)
+// then imports them into the kind node via the kind library.
+func (l *Local) loadLocalImages(ctx context.Context, kc *localcluster.Cluster) error {
+	archive := filepath.Join(os.TempDir(), "optikk-images.tar")
+	defer os.Remove(archive)
+
+	saveArgs := append([]string{"save", "-m", "-o", archive}, localImages...)
+	if err := sh(ctx, "podman", saveArgs...); err != nil {
+		return fmt.Errorf("podman save app images: %w", err)
 	}
-	for image, dir := range images {
-		if err := sh(ctx, "podman", "build", "-t", image, dir); err != nil {
-			return err
-		}
-	}
-	args := []string{"load", "docker-image"}
-	for image := range images {
-		args = append(args, image)
-	}
-	args = append(args, "--name", ClusterName)
-	return sh(ctx, "kind", args...)
+	return kc.LoadImageArchive(archive)
 }
 
 func sh(ctx context.Context, name string, args ...string) error {
