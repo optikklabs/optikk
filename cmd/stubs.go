@@ -13,22 +13,6 @@ func notImplemented(milestone string) func(*cobra.Command, []string) error {
 	}
 }
 
-func newStatusCmd(_ *App) *cobra.Command {
-	return &cobra.Command{
-		Use:   "status",
-		Short: "List optikk-namespace pods and readiness for --target",
-		RunE:  notImplemented("M2"),
-	}
-}
-
-func newVerifyCmd(_ *App) *cobra.Command {
-	return &cobra.Command{
-		Use:   "verify",
-		Short: "Run the health + trace-roundtrip check against --target",
-		RunE:  notImplemented("M2"),
-	}
-}
-
 func newTenantCmd(_ *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tenant",

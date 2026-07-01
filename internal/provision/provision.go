@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/optikklabs/optikk/internal/config"
 )
 
-// ClusterName is the fixed name of the optikk cluster and namespace scope.
+// ClusterName and Namespace are sourced from config (single definition).
 const (
-	ClusterName = "optikk"
-	Namespace   = "optikk"
+	ClusterName = config.ClusterName
+	Namespace   = config.Namespace
 )
 
 // Provisioner brings a target's full stack up or tears it down. New targets

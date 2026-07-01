@@ -8,6 +8,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+// ClusterName and Namespace are fixed for the optikk stack across targets.
+const (
+	ClusterName = "optikk"
+	Namespace   = "optikk"
+)
+
 // Target is the deployment environment a command acts on.
 type Target string
 
