@@ -88,7 +88,7 @@ func (a *Applier) applyWithRetry(ctx context.Context, objs []*unstructured.Unstr
 		if len(next) == 0 {
 			return nil
 		}
-		pending, lastErr = next, lastErr
+		pending = next
 		a.reset()
 		time.Sleep(2 * time.Second)
 	}
