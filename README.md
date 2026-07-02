@@ -205,9 +205,6 @@ machine, ≥8 GiB RAM); GCP target needs **Application Default Credentials**
 (`gcloud auth application-default login`).
 
 ```bash
-# Homebrew (macOS)
-brew install optikklabs/tap/optikk
-
 # Go (any platform, Go 1.26+)
 go install github.com/optikklabs/optikk@latest
 
