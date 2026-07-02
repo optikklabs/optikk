@@ -1,41 +1,32 @@
-// Package localcluster manages the local kind cluster via the kind Go library.
+// Package localcluster manages the local kind cluster via the kind CLI.
 package localcluster
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
-
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/kind/pkg/cluster"
-	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
-	"sigs.k8s.io/kind/pkg/cmd"
 )
 
-// Cluster wraps a kind provider bound to Podman for one named cluster.
+// Cluster names one kind cluster driven through the kind binary on Podman.
 type Cluster struct {
-	Name     string
-	provider *cluster.Provider
+	Name string
 }
 
-// New builds a kind provider using the Podman node backend.
+// New binds a cluster name to the Podman-backed kind CLI.
 func New(name string) *Cluster {
-	os.Setenv("KIND_EXPERIMENTAL_PROVIDER", "podman")
-	provider := cluster.NewProvider(
-		cluster.ProviderWithLogger(cmd.NewLogger()),
-		cluster.ProviderWithPodman(),
-	)
-	return &Cluster{Name: name, provider: provider}
+	return &Cluster{Name: name}
 }
 
 // Exists reports whether the kind cluster is already present.
 func (c *Cluster) Exists() (bool, error) {
-	names, err := c.provider.List()
+	out, err := c.capture("get", "clusters")
 	if err != nil {
 		return false, err
 	}
-	for _, n := range names {
+	for _, n := range strings.Fields(out) {
 		if n == c.Name {
 			return true, nil
 		}
@@ -44,26 +35,22 @@ func (c *Cluster) Exists() (bool, error) {
 }
 
 // Create brings up the cluster from the given kind config, waiting for the
-// control plane to become ready.
+// control plane to become ready. kind's own progress goes to the terminal.
 func (c *Cluster) Create(configFile string, wait time.Duration) error {
-	return c.provider.Create(c.Name,
-		cluster.CreateWithConfigFile(configFile),
-		cluster.CreateWithWaitForReady(wait),
-	)
+	return c.stream("create", "cluster",
+		"--name", c.Name,
+		"--config", configFile,
+		"--wait", wait.String())
 }
 
 // Delete removes the cluster.
 func (c *Cluster) Delete() error {
-	return c.provider.Delete(c.Name, "")
+	return c.stream("delete", "cluster", "--name", c.Name)
 }
 
-// RESTConfig returns a client-go config for the cluster's API server.
-func (c *Cluster) RESTConfig() (*rest.Config, error) {
-	kubeconfig, err := c.provider.KubeConfig(c.Name, false)
-	if err != nil {
-		return nil, err
-	}
-	return clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig))
+// Context is the kubeconfig context kind registers for this cluster.
+func (c *Cluster) Context() string {
+	return "kind-" + c.Name
 }
 
 // NodeContainer is the Podman container name of the control-plane node.
@@ -72,23 +59,34 @@ func (c *Cluster) NodeContainer() string {
 }
 
 // LoadImageArchive imports a (multi-image) tar into every node's containerd.
-// Using the kind library keeps the node's containerd config version in sync
-// with how the cluster was created (the external kind CLI may differ).
 func (c *Cluster) LoadImageArchive(archivePath string) error {
-	nodeList, err := c.provider.ListNodes(c.Name)
-	if err != nil {
-		return err
+	return c.stream("load", "image-archive", archivePath, "--name", c.Name)
+}
+
+// capture runs kind and returns stdout; stderr is folded into the error.
+func (c *Cluster) capture(args ...string) (string, error) {
+	cmd := c.cmd(args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("kind %s: %w (%s)",
+			strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
-	for _, n := range nodeList {
-		f, err := os.Open(archivePath)
-		if err != nil {
-			return err
-		}
-		err = nodeutils.LoadImageArchive(n, f)
-		f.Close()
-		if err != nil {
-			return fmt.Errorf("load image archive into %s: %w", n.String(), err)
-		}
+	return stdout.String(), nil
+}
+
+// stream runs kind with its output attached to the terminal (progress bars).
+func (c *Cluster) stream(args ...string) error {
+	cmd := c.cmd(args...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("kind %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
+}
+
+func (c *Cluster) cmd(args ...string) *exec.Cmd {
+	cmd := exec.Command("kind", args...)
+	cmd.Env = append(os.Environ(), "KIND_EXPERIMENTAL_PROVIDER=podman")
+	return cmd
 }

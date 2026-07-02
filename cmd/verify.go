@@ -15,8 +15,10 @@ func newVerifyCmd(app *App) *cobra.Command {
 		traceFile string
 	)
 	cmd := &cobra.Command{
-		Use:   "verify",
-		Short: "Run the health + trace-roundtrip check against --target",
+		Use:     "verify",
+		Aliases: []string{"smoke"},
+		Short:   "Run health and trace roundtrip checks",
+		Example: "  optikk verify\n  optikk verify --api-key <tenant-key>\n  optikk verify --trace-file ./trace.json",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			conn, err := target.Resolve(app.Cfg)
 			if err != nil {
@@ -26,7 +28,7 @@ func newVerifyCmd(app *App) *cobra.Command {
 				traceFile = filepath.Join(app.DeployDir, "example-trace.json")
 			}
 			return verify.Run(cmd.Context(), verify.Options{
-				REST:      conn.REST,
+				Kube:      conn.Kube,
 				Namespace: config.Namespace,
 				APIBase:   conn.APIBase,
 				OTLPBase:  conn.OTLPBase,

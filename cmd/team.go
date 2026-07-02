@@ -9,8 +9,10 @@ import (
 
 func newTeamCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "team",
-		Short: "Create teams and add members",
+		Use:     "team",
+		Aliases: []string{"teams"},
+		Short:   "Create teams and manage members",
+		Example: "  optikk team create demo\n  optikk team create demo --org Optikk --slug demo\n  optikk team member add user@example.com --team 1 --password 'Secret123!'",
 	}
 	cmd.AddCommand(newTeamCreateCmd(app), newTeamMemberCmd(app))
 	return cmd
@@ -30,9 +32,10 @@ func adminClient() (*apiclient.Client, error) {
 func newTeamCreateCmd(_ *App) *cobra.Command {
 	var org, slug string
 	cmd := &cobra.Command{
-		Use:   "create <name>",
-		Short: "Create a team (returns team_id + api_key)",
-		Args:  cobra.ExactArgs(1),
+		Use:     "create <name>",
+		Aliases: []string{"add"},
+		Short:   "Create a team and print its API key",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := adminClient()
 			if err != nil {
@@ -61,8 +64,9 @@ func newTeamCreateCmd(_ *App) *cobra.Command {
 
 func newTeamMemberCmd(_ *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "member",
-		Short: "Manage team members",
+		Use:     "member",
+		Aliases: []string{"members", "user", "users"},
+		Short:   "Manage team members",
 	}
 
 	var (
@@ -72,9 +76,10 @@ func newTeamMemberCmd(_ *App) *cobra.Command {
 		role     string
 	)
 	add := &cobra.Command{
-		Use:   "add <email>",
-		Short: "Add a member to a team",
-		Args:  cobra.ExactArgs(1),
+		Use:     "add <email>",
+		Aliases: []string{"create"},
+		Short:   "Add a member to a team",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := adminClient()
 			if err != nil {

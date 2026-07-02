@@ -33,23 +33,6 @@ type LocalOptions struct {
 	Out             io.Writer
 }
 
-// GCPOptions configures the GKE + GCS target.
-type GCPOptions struct {
-	DeployDir      string
-	Project        string
-	Region         string
-	Nodes          int32
-	MinNodes       int32
-	MaxNodes       int32
-	MachineType    string
-	MQBucket       string
-	CHBucket       string
-	HMACServiceAcc string
-	Timeout        time.Duration
-	KeepBuckets    bool
-	Out            io.Writer
-}
-
 func step(w io.Writer, format string, args ...any) {
 	if w == nil {
 		return

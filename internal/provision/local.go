@@ -9,7 +9,9 @@ import (
 
 	"github.com/optikklabs/optikk/internal/hostexec"
 	"github.com/optikklabs/optikk/internal/k8sapply"
+	"github.com/optikklabs/optikk/internal/kubectl"
 	"github.com/optikklabs/optikk/internal/localcluster"
+	"github.com/optikklabs/optikk/internal/prereq"
 )
 
 // Local provisions the stack on a kind cluster backed by Podman.
@@ -20,10 +22,15 @@ type Local struct {
 // NewLocal builds the local provisioner.
 func NewLocal(opts LocalOptions) *Local { return &Local{opts: opts} }
 
-// Up prechecks Podman, creates the kind cluster, installs metrics-server, and
-// applies the local overlay, waiting for every workload to become ready.
+// Up prechecks the required tools and Podman, creates the kind cluster,
+// installs metrics-server, and applies the local overlay, waiting for every
+// workload to become ready.
 func (l *Local) Up(ctx context.Context) error {
 	w := l.opts.Out
+
+	if err := prereq.Check(prereq.Podman, prereq.Kind, prereq.Kubectl); err != nil {
+		return err
+	}
 
 	step(w, "prechecking podman machine")
 	if err := hostexec.PrecheckPodman(l.opts.ManagePodman); err != nil {
@@ -56,32 +63,21 @@ func (l *Local) Up(ctx context.Context) error {
 		}
 	}
 
-	cfg, err := kc.RESTConfig()
-	if err != nil {
-		return err
-	}
-	applier, err := k8sapply.NewApplier(cfg)
-	if err != nil {
-		return err
-	}
+	k := kubectl.Kube{Context: kc.Context()}
 
 	step(w, "installing metrics-server")
-	if err := k8sapply.InstallMetricsServer(ctx, applier); err != nil {
+	if err := k8sapply.InstallMetricsServer(ctx, k); err != nil {
 		return err
 	}
 
 	step(w, "applying overlays/local")
-	objs, err := k8sapply.Render(filepath.Join(l.opts.DeployDir, "overlays", "local"))
-	if err != nil {
-		return err
-	}
-	if err := applier.Apply(ctx, objs); err != nil {
+	if err := k8sapply.ApplyKustomize(ctx, k, filepath.Join(l.opts.DeployDir, "overlays", "local")); err != nil {
 		return err
 	}
 
 	step(w, "waiting for rollouts (timeout %s)", l.opts.Timeout)
-	if err := k8sapply.WaitRollouts(ctx, cfg, Namespace, l.opts.Timeout); err != nil {
-		return fmt.Errorf("rollout wait: %w (%s)", err, k8sapply.PendingSummary(ctx, cfg, Namespace))
+	if err := k8sapply.WaitRollouts(ctx, k, Namespace, l.opts.Timeout); err != nil {
+		return fmt.Errorf("rollout wait: %w (%s)", err, k8sapply.PendingSummary(ctx, k, Namespace))
 	}
 
 	step(w, "local stack ready — query API at http://localhost:8080")
@@ -91,6 +87,10 @@ func (l *Local) Up(ctx context.Context) error {
 // Down deletes the kind cluster, or just the stack when KeepCluster is set.
 func (l *Local) Down(ctx context.Context) error {
 	w := l.opts.Out
+
+	if err := prereq.Check(prereq.Kind, prereq.Kubectl); err != nil {
+		return err
+	}
 	kc := localcluster.New(ClusterName)
 
 	if !l.opts.KeepCluster {
@@ -99,19 +99,8 @@ func (l *Local) Down(ctx context.Context) error {
 	}
 
 	step(w, "deleting the optikk stack (keeping cluster)")
-	cfg, err := kc.RESTConfig()
-	if err != nil {
-		return err
-	}
-	applier, err := k8sapply.NewApplier(cfg)
-	if err != nil {
-		return err
-	}
-	objs, err := k8sapply.Render(filepath.Join(l.opts.DeployDir, "overlays", "local"))
-	if err != nil {
-		return err
-	}
-	return applier.Delete(ctx, objs)
+	k := kubectl.Kube{Context: kc.Context()}
+	return k8sapply.DeleteKustomize(ctx, k, filepath.Join(l.opts.DeployDir, "overlays", "local"))
 }
 
 // localImages are the private app images kind must have loaded when the ghcr
@@ -125,7 +114,7 @@ var localImages = []string{
 }
 
 // loadLocalImages saves the locally-present app images (podman, host-level)
-// then imports them into the kind node via the kind library.
+// then imports the archive into the kind node.
 func (l *Local) loadLocalImages(ctx context.Context, kc *localcluster.Cluster) error {
 	archive := filepath.Join(os.TempDir(), "optikk-images.tar")
 	defer os.Remove(archive)
@@ -139,7 +128,6 @@ func (l *Local) loadLocalImages(ctx context.Context, kc *localcluster.Cluster) e
 
 func sh(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Env = append(os.Environ(), "KIND_EXPERIMENTAL_PROVIDER=podman")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

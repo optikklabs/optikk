@@ -14,16 +14,34 @@ builds:
       - CGO_ENABLED=0
     goos: [darwin, linux]
     goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+      - -buildvcs=false
     ldflags:
-      - -s -w -X github.com/optikklabs/optikk/cmd.version={{ .Version }}
+      - -s -w -buildid= -X github.com/optikklabs/optikk/cmd.version={{ .Version }} -X github.com/optikklabs/optikk/cmd.commit={{ .ShortCommit }} -X github.com/optikklabs/optikk/cmd.date={{ .Date }}
 
 archives:
   - id: optikk
     formats: [tar.gz]
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
 
 checksum:
-  name_template: "checksums.txt"
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+homebrew_casks:
+  - name: optikk
+    repository:
+      owner: optikklabs
+      name: homebrew-tap
+    homepage: "https://github.com/optikklabs/optikk"
+    description: "Provision and operate the Optikk observability stack locally"
+    license: "Apache-2.0"
+    binaries:
+      - optikk
 
 changelog:
   sort: asc

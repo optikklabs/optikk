@@ -16,6 +16,8 @@ type App struct {
 	DeployDir string
 }
 
+const annotationNoConfig = "optikk/no-config"
+
 // persistent flag values, resolved into App.Cfg in PersistentPreRunE.
 type rootFlags struct {
 	configFile string
@@ -31,17 +33,22 @@ func NewRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:           "optikk",
-		Short:         "Provision and operate the Optikk stack on local (kind) or GCP (GKE)",
+		Short:         "Provision and operate the Optikk stack on a local kind cluster",
+		Long:          "optikk provisions and operates the full Optikk observability stack on a local kind cluster.",
+		Example:       "  optikk doctor\n  optikk up\n  optikk admin login\n  optikk team create demo\n  optikk tenant onboard demo --key <api-key>\n  optikk verify --api-key <api-key>\n  optikk status\n  optikk down",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if skipsConfig(cmd) {
+				return nil
+			}
 			return app.load(cmd, f)
 		},
 	}
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&f.configFile, "config", "", "config file (default: ./optikk.yaml or ~/.optikk/config)")
-	pf.StringVar(&f.target, "target", "", "deployment target: local|gcp (default local)")
+	pf.StringVar(&f.target, "target", "", "deployment target: local (default local)")
 	pf.StringVar(&f.deployDir, "deploy-dir", "", "path to the deploy/ kustomize tree (auto-detected)")
 	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output")
 
@@ -51,13 +58,24 @@ func NewRootCmd() *cobra.Command {
 		newDownCmd(app),
 		newStatusCmd(app),
 		newVerifyCmd(app),
+		newDoctorCmd(),
 		newTenantCmd(app),
 		newAdminCmd(app),
 		newTeamCmd(app),
 		newConfigCmd(app),
+		newCompletionCmd(root),
 		newVersionCmd(app),
 	)
 	return root
+}
+
+func skipsConfig(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Annotations[annotationNoConfig] == "true" {
+			return true
+		}
+	}
+	return false
 }
 
 // load merges config file, env, and flags into app.Cfg and resolves deploy/.
@@ -79,9 +97,9 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	}
 
 	switch cfg.Target {
-	case config.TargetLocal, config.TargetGCP:
+	case config.TargetLocal:
 	default:
-		return fmt.Errorf("invalid --target %q (want local or gcp)", cfg.Target)
+		return fmt.Errorf("invalid --target %q (want local)", cfg.Target)
 	}
 
 	dir, err := deploypath.Resolve(cfg.DeployDir)

@@ -10,14 +10,14 @@ import (
 	"os"
 	"time"
 
-	"k8s.io/client-go/rest"
+	"github.com/optikklabs/optikk/internal/kubectl"
 )
 
 const spanCountQuery = "SELECT count() FROM optikk.spans"
 
 // Options configures a verification run.
 type Options struct {
-	REST      *rest.Config
+	Kube      kubectl.Kube
 	Namespace string
 	APIBase   string
 	OTLPBase  string
@@ -33,7 +33,7 @@ func Run(ctx context.Context, o Options) error {
 		return err
 	}
 
-	before, err := execCHCount(ctx, o.REST, o.Namespace, spanCountQuery)
+	before, err := execCHCount(ctx, o.Kube, o.Namespace, spanCountQuery)
 	if err != nil {
 		return fmt.Errorf("count spans (before): %w", err)
 	}
@@ -93,7 +93,7 @@ func postTrace(ctx context.Context, otlpBase, apiKey, traceFile string) error {
 func waitForIncrease(ctx context.Context, o Options, before int64) (int64, error) {
 	deadline := time.Now().Add(30 * time.Second)
 	for {
-		after, err := execCHCount(ctx, o.REST, o.Namespace, spanCountQuery)
+		after, err := execCHCount(ctx, o.Kube, o.Namespace, spanCountQuery)
 		if err != nil {
 			return 0, err
 		}

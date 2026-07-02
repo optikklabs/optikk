@@ -18,8 +18,10 @@ const (
 
 func newAdminCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "admin",
-		Short: "Platform super-admin setup and login",
+		Use:     "admin",
+		Aliases: []string{"auth"},
+		Short:   "Set up and log in as platform admin",
+		Example: "  optikk admin setup\n  optikk admin login\n  optikk admin login --email admin@optikk.dev --password 'Password123!'",
 	}
 	cmd.AddCommand(newAdminSetupCmd(app), newAdminLoginCmd(app))
 	return cmd
@@ -28,14 +30,15 @@ func newAdminCmd(app *App) *cobra.Command {
 func newAdminSetupCmd(app *App) *cobra.Command {
 	var email, password string
 	cmd := &cobra.Command{
-		Use:   "setup",
-		Short: "Set the query super-admin credentials and reseed (create-if-absent)",
+		Use:     "setup",
+		Aliases: []string{"seed"},
+		Short:   "Set query super-admin credentials and reseed",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			conn, err := target.Resolve(app.Cfg)
 			if err != nil {
 				return err
 			}
-			if err := adminseed.SetCredentials(cmd.Context(), conn.REST, config.Namespace, email, password); err != nil {
+			if err := adminseed.SetCredentials(cmd.Context(), conn.Kube, config.Namespace, email, password); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "query-secret updated and query restarted for %s\n", email)
@@ -51,8 +54,9 @@ func newAdminSetupCmd(app *App) *cobra.Command {
 func newAdminLoginCmd(app *App) *cobra.Command {
 	var email, password string
 	cmd := &cobra.Command{
-		Use:   "login",
-		Short: "Obtain and cache an admin JWT for team commands",
+		Use:     "login",
+		Aliases: []string{"signin"},
+		Short:   "Cache an admin session for team commands",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			conn, err := target.Resolve(app.Cfg)
 			if err != nil {

@@ -1,17 +1,19 @@
 # optikk
 
 A single CLI to provision the **entire Optikk stack from prebuilt container images** and
-operate it — on a **local kind cluster** or on **Google Cloud (GKE)**. It turns a manual,
-order-sensitive runbook into a handful of health-gated commands.
+operate it on a **local kind cluster**. It turns a manual, order-sensitive runbook into a
+handful of health-gated commands.
 
 - **Module:** `github.com/optikklabs/optikk` · **Go:** 1.26 · **CLI:** Cobra
 - The Kubernetes manifests are **embedded** in the binary (`assets/deploy`, via `go:embed`) —
-  the CLI **renders** them (kustomize Go API) and **server-side-applies** them (client-go), so
-  it is fully self-contained with no external manifest tree to clone.
-- Environment is a **`--target local|gcp` flag**, not a subcommand. The top-level verbs
+  no external manifest tree to clone.
+- The binary is **minimal (~8 MB)**: it orchestrates, and shells out to **podman, kind, and
+  kubectl** for the heavy lifting — the same model kind itself uses with podman/docker. The
+  tools are checked up front; missing ones fail fast with install instructions.
+- Release builds are static, stripped, and installable with `go install`, Homebrew, or a
+  tarball from GitHub Releases.
+- Environment is a **`--target local` flag**, not a subcommand. The top-level verbs
   (`up`, `down`, `status`, `verify`, `tenant`, `admin`, `team`) provision infra from scratch.
-- **Native Go SDKs** throughout (kind lib, client-go SSA, kustomize, GKE + GCS SDKs). The only
-  shell-outs are two host-level Podman steps that have no Go SDK, and `podman save`.
 
 ---
 
@@ -70,9 +72,8 @@ These ghcr packages are public — Kubernetes pulls them directly, no credential
 
 **Optional `--load-local-images` (local target):** for air-gapped/offline runs or when testing a
 locally-built image, pass this flag to `up --target local`. The CLI runs `podman save -m` on the
-four images already present on the host and imports the archive into the kind node via the **kind
-Go library** (`nodeutils.LoadImageArchive`) — which also sidesteps the containerd-config-version
-mismatch of the external `kind load` CLI. Not needed for a normal run.
+four images already present on the host and imports the archive with `kind load image-archive`.
+Not needed for a normal run.
 
 ### Upstream images (public)
 
@@ -119,13 +120,8 @@ flowchart LR
     end
 ```
 
-**Per-target ingress / storage differences:**
-
-| | Target = local (kind on Podman) | Target = gcp (GKE) |
-|---|---|---|
-| Query/UI ingress | host `:8080` → Traefik web | Traefik Service → LoadBalancer external IP |
-| OTLP ingress | host `:4318` → ingest | LoadBalancer IP `:4318` |
-| mq + ClickHouse cold tier | local PVCs | GCS buckets (HMAC keys) |
+**Ingress / storage (local — kind on Podman):** host `:8080` → Traefik web, host `:4318` →
+OTLP ingest, mq + ClickHouse on local PVCs.
 
 ---
 
@@ -168,48 +164,47 @@ Two gotchas the CLI accounts for:
 ### `up --target local`
 
 ```
+check required tools on PATH (podman, kind, kubectl) — fail fast with install instructions
 precheck podman machine (rootful? running? ≥5 vCPU / ≥8 GiB / ≥40 GiB disk)
   └─ short? fail with the exact `podman machine set ...` command  (or run it with --manage-podman)
 create kind cluster "optikk"  (deploy/kind/kind-config.yaml)   [reused if it already exists]
 lift pids-limit on the node container
-[--load-local-images] podman save 4 app images  ->  kind LoadImageArchive
+[--load-local-images] podman save 4 app images  ->  kind load image-archive
 install metrics-server (+ --kubelet-insecure-tls)
-render deploy/overlays/local (kustomize)  ->  server-side apply (CRDs before CRs, retry)
+kubectl apply -k deploy/overlays/local  (server-side, retried while CRDs register)
 wait for all Deployments + StatefulSets to roll out
 ready -> query API at http://localhost:8080
 ```
 
-### `up --target gcp`
-
-```
-validate --project/--region/--mq-bucket/--ch-bucket/--hmac-sa
-create GKE cluster "optikk"  (autoscaling pool, container/apiv1)
-create GCS buckets (mq + ClickHouse cold tier)   [409 already-exists = ok]
-mint HMAC key for --hmac-sa
-create namespace + GCS secrets (mq-gcs-secret, ch-gcs-secret)
-render deploy/overlays/gcp with bucket names substituted  ->  server-side apply
-wait for rollouts, then wait for the Traefik LoadBalancer external IP
-ready -> query API at http://<external-ip>
-```
-
-`down` reverses it: local deletes the kind cluster (or just the stack with `--keep-cluster`);
-gcp deletes the GKE cluster and the buckets (unless `--keep-buckets`).
+`down` reverses it: deletes the kind cluster (or just the stack with `--keep-cluster`).
 
 ---
 
 ## Install
 
-The binary is **self-contained** — the Kubernetes manifests are embedded, so `optikk` runs
-from any directory with no external files. Local target additionally needs **Podman** (rootful
-machine, ≥8 GiB RAM); GCP target needs **Application Default Credentials**
-(`gcloud auth application-default login`).
+The Kubernetes manifests are embedded, so `optikk` runs from any directory with no external
+files to clone.
+
+### Prerequisites
+
+The CLI shells out to three standard tools; `up` checks for them and prints these commands if
+any is missing:
+
+| Tool | Install (macOS) | Docs |
+|---|---|---|
+| **podman** (rootful machine, ≥8 GiB RAM) | `brew install podman` | https://podman.io/docs/installation |
+| **kind** | `brew install kind` | https://kind.sigs.k8s.io/docs/user/quick-start/#installation |
+| **kubectl** | `brew install kubectl` | https://kubernetes.io/docs/tasks/tools/ |
 
 ```bash
+# Homebrew (macOS/Linux, after the release tap is published)
+brew install optikklabs/tap/optikk
+
 # Go (any platform, Go 1.26+)
 go install github.com/optikklabs/optikk@latest
 
-# Raw binary (macOS/Linux, amd64/arm64) — from the GitHub Release
-curl -L https://github.com/optikklabs/optikk/releases/latest/download/optikk_$(uname -s)_$(uname -m).tar.gz | tar xz
+# Raw binary (macOS/Linux, amd64/arm64) — from a GitHub Release
+curl -L https://github.com/optikklabs/optikk/releases/download/vX.Y.Z/optikk_X.Y.Z_darwin_arm64.tar.gz | tar xz
 ./optikk --help
 ```
 
@@ -225,15 +220,17 @@ optikk --help      # verify install
 optikk up          # provision the local (kind) stack
 ```
 
-Build from source: `go build -o optikk .`. Developing against a live manifest tree instead of
-the embedded copy? Point at it with `--deploy-dir PATH`.
+Build from source: `make build`; install to `/usr/local/bin` with `make install` or override
+`PREFIX=/path make install`. Developing against a live manifest tree instead of the embedded
+copy? Point at it with `--deploy-dir PATH`.
 
 ---
 
 ## Quick start (local)
 
 ```bash
-# 1. Provision cluster + full stack (public images pulled by Kubernetes)
+# 1. Check local tools, then provision cluster + full stack
+optikk doctor
 optikk up                                # add --load-local-images only for offline/local builds
 
 # 2. Health + trace roundtrip against the default tenant key
@@ -260,27 +257,30 @@ optikk down
 
 ## Command reference
 
-Persistent flags (all commands): `--target local|gcp` (default `local`) · `--config PATH` ·
+Persistent flags (all commands): `--target local` (default `local`) · `--config PATH` ·
 `--deploy-dir PATH` · `--verbose/-v`.
+
+### `optikk doctor`
+Check that `podman`, `kind`, and `kubectl` are installed before provisioning.
+Aliases: `check`, `preflight`.
 
 ### `optikk up`
 Provision infra from scratch + deploy the full stack for `--target`.
-
-- local: `[--manage-podman] [--load-local-images] [--timeout 10m]`
-- gcp: `--project ID --region R [--nodes 1] [--min-nodes 3] [--max-nodes 6]`
-  `[--machine-type e2-standard-4] [--mq-bucket NAME] [--ch-bucket NAME] [--hmac-sa EMAIL] [--timeout 10m]`
+`[--manage-podman] [--load-local-images] [--timeout 10m]`
+Aliases: `start`, `deploy`.
 
 ### `optikk down`
-Tear down the stack + the cluster it created.
-
-- local: `[--keep-cluster]` · gcp: `--project ID --region R [--keep-buckets]`
+Tear down the stack + the cluster it created. `[--keep-cluster]`
+Aliases: `stop`, `destroy`.
 
 ### `optikk status`
 List `optikk`-namespace pods + readiness for `--target`.
+Aliases: `ps`, `pods`.
 
 ### `optikk verify`
 `/health` 200 → POST one OTLP trace with `x-api-key` → assert the ClickHouse span count rose
 (polls up to 30s; ingestion is async). `[--api-key c3448fae] [--trace-file <deploy>/example-trace.json]`
+Alias: `smoke`.
 
 ### `optikk tenant onboard <slug> --key KEY` / `optikk tenant offboard <slug>`
 Materialize `deploy/tenants/_template` for `<slug>`, create `otel-collector-<slug>-secret`,
@@ -298,25 +298,19 @@ render + apply (or delete) the per-tenant otel-collector.
 - `member add <email> --team ID --password P [--name N] [--role R]` — admin-gated; creates a
   user assigned to the team (there is no dedicated member endpoint — this maps to create-user).
 
-### `optikk config show` · `optikk version`
-Print the merged config (flags + `optikk.yaml`/`~/.optikk` + gcloud fallback) / the version.
+### `optikk config show` · `optikk completion` · `optikk version`
+Print the merged config; generate shell completion for `bash`, `zsh`, `fish`, or `powershell`;
+print version, commit, and build date.
 
 ---
 
 ## Configuration
 
-Precedence: **flags → `optikk.yaml` (cwd) or `~/.optikk/config` → `OPTIKK_*` env → gcloud active
-config** (project/region fallback for gcp). Example `optikk.yaml`:
+Precedence: **defaults → `optikk.yaml` (cwd) or `~/.optikk/config`/`~/.optikk/optikk.yaml` → `OPTIKK_*` env → flags**.
+Example `optikk.yaml`:
 
 ```yaml
-target: gcp
-gcp:
-  project: my-gcp-project
-  region: us-central1
-  machine_type: e2-standard-4
-  mq_bucket: optikk-mq-cold
-  ch_bucket: optikk-ch-cold
-  hmac_service_account: optikk-storage@my-gcp-project.iam.gserviceaccount.com
+target: local
 admin:
   email: admin@optikk.dev
   password: Password123!
@@ -328,20 +322,14 @@ State the CLI writes: the admin session cache at `~/.optikk/token.json` (per API
 
 ## Resource sizing
 
-Pod resource **requests** live in `deploy/` (base + `overlays/gcp` patches) and are applied
-unchanged. The CLI owns **cluster/VM** sizing and validates the host floor before `up`.
+Pod resource **requests** live in `deploy/` and are applied unchanged. The CLI owns **VM**
+sizing and validates the host floor before `up`.
 
 ### Local — kind on Podman
 Cluster total for 1 tenant ≈ **1.5 vCPU / ~3 GiB / ~12 GiB disk**. Podman machine floor the CLI
 enforces: **≥5 vCPU, ≥8 GiB RAM (hard floor — less and ClickHouse OOMs), ≥40 GiB disk**, rootful
 and running. Short? `up` fails with the exact `podman machine set --cpus/--memory/--disk-size`
 command (or fixes it with `--manage-podman`).
-
-### Cloud — GKE
-Node pool `e2-standard-4` (4 vCPU / 16 GiB), autoscaling **3 → 6** nodes (override via
-`--machine-type/--nodes/--min-nodes/--max-nodes`). Stateful requests from `overlays/gcp`:
-ClickHouse 2 vCPU / 8 GiB + 100 Gi SSD + GCS cold tier · MariaDB 1 vCPU / 4 GiB + 20 Gi ·
-mq 1 vCPU / 2 GiB (data in GCS). Stateless workloads scale via HPA.
 
 ---
 
@@ -352,18 +340,19 @@ pro/optikk/
   main.go                 cobra Execute()
   assets/                 embedded deploy/ kustomize tree (go:embed) + Materialize()
   cmd/                    one file per command; root.go wires target + persistent flags
-    up down status verify tenant admin team config version   (+ gcpflags, root)
+    up down status verify tenant admin team config version   (+ root)
   internal/
-    config/               viper: flags -> optikk.yaml/~/.optikk -> gcloud fallback
+    config/               lightweight YAML/env loader; flags override in cmd/root.go
     deploypath/           resolve manifests (embedded assets/deploy, or --deploy-dir override)
+    prereq/               fail-fast checks for podman/kind/kubectl with install hints
     hostexec/             podman machine precheck (+ opt-in manage), pids-limit
-    localcluster/         kind create/delete/load via sigs.k8s.io/kind/pkg/cluster
-    k8sapply/             kustomize render -> client-go SSA (CRD-ordered) + rollout waits,
-                          metrics-server, namespace/secret helpers
-    gcp/                  GKE (container/apiv1) + GCS buckets/HMAC (cloud.google.com/go/storage)
-    provision/            Local + GCP "up/down" orchestrators
-    target/               resolve live conn (REST config + API/OTLP base) per target
-    verify/               /health + OTLP roundtrip + ClickHouse count assert (pod exec)
+    localcluster/         kind create/delete/load via the kind CLI (Podman provider)
+    kubectl/              kubectl runner bound to the cluster's kubeconfig context
+    k8sapply/             kubectl apply -k (server-side, CRD-retry) + rollout waits,
+                          metrics-server install
+    provision/            Local "up/down" orchestrator
+    target/               resolve live conn (kubectl context + API/OTLP base) per target
+    verify/               /health + OTLP roundtrip + ClickHouse count assert (kubectl exec)
     status/               pod readiness table
     tenant/               onboard/offboard per-tenant otel-collector
     apiclient/            query API client: login (JWT cache) + CreateTeam/CreateUser
@@ -388,7 +377,8 @@ pro/optikk/
 | Symptom | Cause / fix |
 |---|---|
 | `up` refuses at precheck | Podman machine below floor or not rootful/running — run the printed `podman machine set ...` (or use `--manage-podman`). |
-| Offline / `unknown containerd config version` on manual `kind load` | Images are public so a normal `up` pulls them; for air-gapped runs use `--load-local-images` (loads via the kind library, and the 4 app images must exist on the host — `podman images`). |
+| `missing required tools` on `up` | Install the printed tools (podman/kind/kubectl) — the error includes the exact brew command and docs link for each. |
+| Offline images | Images are public so a normal `up` pulls them; for air-gapped runs use `--load-local-images` (the 4 app images must exist on the host — `podman images`). |
 | `verify` span count stays 0 | No team matches the tenant key on a fresh cluster — `team create` then `tenant onboard --key`. If a key was tried too early, `kubectl -n optikk rollout restart deploy/ingest` clears the 5-min negative cache. |
 | `login` 405 | The query API is under `/api` (Traefik `PathPrefix(/api)`); the client already targets `<base>/api`. |
 | `team`/`admin` commands say no session | Run `optikk admin login` first (caches JWT at `~/.optikk/token.json`). |
@@ -404,4 +394,4 @@ pro/optikk/
 | M2 `status` + `verify` | ✅ verified (0→1 span roundtrip) |
 | M4 `tenant onboard/offboard` | ✅ verified (keyed trace lands, cleanup works) |
 | M5 `admin` + `team` | ✅ verified (login, team create, member add, reseed) |
-| M3 `up`/`down --target gcp` | ⚠️ code complete, compile/vet clean — **live GKE run not yet performed** (billable) |
+| M3 `up`/`down --target gcp` | ❌ removed — the CLI is local-only; cloud targets are out of scope for the minimal binary |
