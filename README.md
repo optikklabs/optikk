@@ -213,6 +213,18 @@ curl -L https://github.com/optikklabs/optikk/releases/latest/download/optikk_$(u
 ./optikk --help
 ```
 
+### Run via `go install`
+
+`go install` drops the `optikk` binary in `$(go env GOPATH)/bin`. Add that to your `PATH`, then run it directly:
+
+```bash
+go install github.com/optikklabs/optikk@latest
+export PATH="$(go env GOPATH)/bin:$PATH"   # add to your shell profile to persist
+
+optikk --help      # verify install
+optikk up          # provision the local (kind) stack
+```
+
 Build from source: `go build -o optikk .`. Developing against a live manifest tree instead of
 the embedded copy? Point at it with `--deploy-dir PATH`.
 
