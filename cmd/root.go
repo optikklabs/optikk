@@ -14,9 +14,17 @@ import (
 type App struct {
 	Cfg       config.Config
 	DeployDir string
+
+	// Data-CLI state (populated from persistent flags).
+	AgentMode bool
 }
 
-const annotationNoConfig = "optikk/no-config"
+const (
+	annotationNoConfig  = "optikk/no-config"
+	// annotationSkipDeploy marks commands that need config but not deploy/.
+	// Auth and data commands use this — they only need API URL + token.
+	annotationSkipDeploy = "optikk/skip-deploy"
+)
 
 // persistent flag values, resolved into App.Cfg in PersistentPreRunE.
 type rootFlags struct {
@@ -24,6 +32,12 @@ type rootFlags struct {
 	target     string
 	deployDir  string
 	verbose    bool
+
+	// Data-CLI flags.
+	apiURL    string
+	teamID    int64
+	output    string
+	agentMode bool
 }
 
 // NewRootCmd builds the root command and registers every subcommand.
@@ -33,9 +47,22 @@ func NewRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:           "optikk",
-		Short:         "Provision and operate the Optikk stack on a local kind cluster",
-		Long:          "optikk provisions and operates the full Optikk observability stack on a local kind cluster.",
-		Example:       "  optikk doctor\n  optikk up\n  optikk admin login\n  optikk team create demo\n  optikk tenant onboard demo --key <api-key>\n  optikk verify --api-key <api-key>\n  optikk status\n  optikk down",
+		Short:         "Provision, operate, and query the Optikk observability stack",
+		Long:          "optikk provisions and operates the full Optikk observability stack, and provides Datadog Pup-style data commands for traces, logs, metrics, dashboards, and monitors.",
+		Example: `  # Ops commands
+  optikk doctor
+  optikk up
+  optikk verify --api-key <api-key>
+  optikk status
+  optikk down
+
+  # Data commands (Datadog Pup-style)
+  optikk auth login
+  optikk traces search --query "service:api" --from 1h
+  optikk logs search --query "severity_text:ERROR" --from 15m
+  optikk metrics list --from 1h
+  optikk dashboards list
+  optikk monitors list --status triggered`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -52,7 +79,13 @@ func NewRootCmd() *cobra.Command {
 	pf.StringVar(&f.deployDir, "deploy-dir", "", "path to the deploy/ kustomize tree (auto-detected)")
 	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output")
 
-	// Registering a command is one line here; see cmd/*.go for definitions.
+	// Data-CLI persistent flags (Datadog Pup-style).
+	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL (OPTIKK_API_URL, default http://localhost:8080)")
+	pf.Int64Var(&f.teamID, "team-id", 0, "team context for X-Team-Id header (OPTIKK_TEAM_ID)")
+	pf.StringVarP(&f.output, "output", "o", "", "output format: table|json|yaml (auto-detected from TTY)")
+	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, skip confirmations (FORCE_AGENT_MODE)")
+
+	// Ops commands.
 	root.AddCommand(
 		newUpCmd(app),
 		newDownCmd(app),
@@ -66,12 +99,33 @@ func NewRootCmd() *cobra.Command {
 		newCompletionCmd(root),
 		newVersionCmd(app),
 	)
+
+	// Data commands (Datadog Pup-style).
+	root.AddCommand(
+		newAuthCmd(app),
+		newTracesCmd(app),
+		newLogsCmd(app),
+		newMetricsCmd(app),
+		newDashboardsCmd(app),
+		newMonitorsCmd(app),
+		newAgentCmd(),
+	)
+
 	return root
 }
 
 func skipsConfig(cmd *cobra.Command) bool {
 	for c := cmd; c != nil; c = c.Parent() {
 		if c.Annotations[annotationNoConfig] == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+func skipsDeploy(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Annotations[annotationSkipDeploy] == "true" {
 			return true
 		}
 	}
@@ -94,6 +148,22 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	}
 	if cmd.Flags().Changed("verbose") {
 		cfg.Verbose = f.verbose
+	}
+	if cmd.Flags().Changed("api-url") {
+		cfg.ApiURL = f.apiURL
+	}
+	if cmd.Flags().Changed("team-id") {
+		cfg.TeamID = f.teamID
+	}
+	if cmd.Flags().Changed("output") {
+		cfg.Output = f.output
+	}
+	a.AgentMode = f.agentMode
+
+	// Data commands skip deploy path + target validation.
+	if skipsDeploy(cmd) {
+		a.Cfg = cfg
+		return nil
 	}
 
 	switch cfg.Target {

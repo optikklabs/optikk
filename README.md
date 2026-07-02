@@ -292,13 +292,64 @@ render + apply (or delete) the per-tenant otel-collector.
 - `login [--email E] [--password P]` — `POST /api/v1/auth/login`, cache the JWT at
   `~/.optikk/token.json` for the `team` commands.
 
-### `optikk team create <name>` / `optikk team member add <email>`
+### optikk team create <name> / optikk team member add <email>
 - `create <name> [--org O] [--slug S]` — admin-gated; prints `team_id`, `slug`, `api_key`
   (the `api_key` is what `tenant onboard --key` consumes).
 - `member add <email> --team ID --password P [--name N] [--role R]` — admin-gated; creates a
   user assigned to the team (there is no dedicated member endpoint — this maps to create-user).
 
-### `optikk config show` · `optikk completion` · `optikk version`
+### Data Commands (Datadog Pup-style)
+The CLI includes a full suite of commands for querying and managing observability data, heavily modeled after Datadog's `pup` CLI. These commands connect directly to the query API (no `kubectl` needed) and support TTY auto-detection (pretty tables for humans, raw JSON for pipes).
+
+#### **Auth (`optikk auth`)**
+- `login [--email E] [--password P]` — Authenticate and cache the JWT at `~/.optikk/token.json`.
+- `status` — Check if the current session is valid.
+- `logout` — Clear the local session.
+
+#### **Logs (`optikk logs`)**
+- `search [--query Q] [--from T]` — Search logs using a query (e.g., `severity_text:ERROR`).
+
+#### **Traces (`optikk traces`)**
+- `search [--query Q] [--from T]` — Search traces based on tags, service name, or status.
+- `get <traceId>` — Retrieve full details of a specific trace.
+- `trend` — View aggregate trace trends and statistics.
+
+#### **Metrics (`optikk metrics`)**
+- `list` — List all available metrics in the current timeframe.
+- `query [--metric M] [--aggregation A] [--from T]` — Query metric timeseries data.
+- `tags <metricName>` — List all tags reporting for a specific metric.
+
+#### **Monitors (`optikk monitors`)**
+- `list [--status S]` — List all monitors, optionally filtered by status (e.g., `triggered`).
+- `get <id>` — View the configuration and current state of a specific monitor.
+- `create` — Create a new monitor interactively or via JSON payload.
+- `update <id>` — Update an existing monitor.
+- `delete <id>` — Delete a monitor.
+- `mute <id> [--duration D]` — Mute alerts for a monitor for a specific duration (e.g., `1h`).
+- `unmute <id>` — Unmute alerts for a monitor.
+- `ack <id>` — Acknowledge an active alert.
+- `test <id>` — Simulate a trigger to test alerting integrations.
+
+#### **Dashboards (`optikk dashboards`)**
+- `list` — List all dashboards.
+- `get <id>` — View a specific dashboard's layout and widgets.
+- `create` — Create a new dashboard.
+- `update <id>` — Update an existing dashboard.
+- `delete <id>` — Delete a dashboard.
+- `export <id> [-o dash.json]` — Export a dashboard as a JSON file.
+- `import [-f dash.json]` — Import a dashboard from a JSON file.
+- `url <id>` — Print the direct web URL to the dashboard.
+
+#### **Agent Integration (`optikk agent`)**
+- `schema` — Emits a JSON command tree schema intended for AI discoverability and AI agents.
+
+**Persistent Data Flags:**
+- `--api-url` (or `OPTIKK_API_URL`): query API base (default `http://localhost:8080`)
+- `--team-id` (or `OPTIKK_TEAM_ID`): `X-Team-Id` header context
+- `--output` (or `OPTIKK_OUTPUT`): `table` | `json` | `yaml`
+- `--agent` (or `FORCE_AGENT_MODE=1`): JSON output, skips interactive confirmations
+
+### optikk config show · optikk completion · optikk version
 Print the merged config; generate shell completion for `bash`, `zsh`, `fish`, or `powershell`;
 print version, commit, and build date.
 

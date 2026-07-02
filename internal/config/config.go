@@ -32,6 +32,12 @@ type Config struct {
 	Verbose   bool   `mapstructure:"verbose" yaml:"verbose"`
 
 	Admin Admin `mapstructure:"admin" yaml:"admin"`
+
+	// Data-CLI fields (Datadog Pup-style).
+	ApiURL string `mapstructure:"api_url" yaml:"api_url"`  // OPTIKK_API_URL
+	Output string `mapstructure:"output" yaml:"output"`    // OPTIKK_OUTPUT (table|json|yaml)
+	TeamID int64  `mapstructure:"team_id" yaml:"team_id"` // OPTIKK_TEAM_ID
+	Token  string `mapstructure:"-" yaml:"-"`              // OPTIKK_TOKEN (runtime only)
 }
 
 // Admin holds the platform super-admin credentials seeded into query.
@@ -100,5 +106,21 @@ func applyEnv(cfg *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv("OPTIKK_ADMIN_PASSWORD")); v != "" {
 		cfg.Admin.Password = v
+	}
+
+	// Data-CLI env vars (Datadog Pup-style).
+	if v := strings.TrimSpace(os.Getenv("OPTIKK_API_URL")); v != "" {
+		cfg.ApiURL = v
+	}
+	if v := strings.TrimSpace(os.Getenv("OPTIKK_OUTPUT")); v != "" {
+		cfg.Output = v
+	}
+	if v := strings.TrimSpace(os.Getenv("OPTIKK_TEAM_ID")); v != "" {
+		if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+			cfg.TeamID = parsed
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("OPTIKK_TOKEN")); v != "" {
+		cfg.Token = v
 	}
 }

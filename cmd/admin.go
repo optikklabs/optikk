@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/optikklabs/optikk/internal/adminseed"
-	"github.com/optikklabs/optikk/internal/apiclient"
 	"github.com/optikklabs/optikk/internal/config"
 	"github.com/optikklabs/optikk/internal/target"
 	"github.com/spf13/cobra"
@@ -19,11 +18,10 @@ const (
 func newAdminCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "admin",
-		Aliases: []string{"auth"},
-		Short:   "Set up and log in as platform admin",
-		Example: "  optikk admin setup\n  optikk admin login\n  optikk admin login --email admin@optikk.dev --password 'Password123!'",
+		Short:   "Platform admin operations (setup credentials)",
+		Example: "  optikk admin setup\n  optikk admin setup --email admin@optikk.dev --password 'Password123!'",
 	}
-	cmd.AddCommand(newAdminSetupCmd(app), newAdminLoginCmd(app))
+	cmd.AddCommand(newAdminSetupCmd(app))
 	return cmd
 }
 
@@ -51,30 +49,4 @@ func newAdminSetupCmd(app *App) *cobra.Command {
 	return cmd
 }
 
-func newAdminLoginCmd(app *App) *cobra.Command {
-	var email, password string
-	cmd := &cobra.Command{
-		Use:     "login",
-		Aliases: []string{"signin"},
-		Short:   "Cache an admin session for team commands",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			conn, err := target.Resolve(app.Cfg)
-			if err != nil {
-				return err
-			}
-			client := apiclient.New(conn.APIBase)
-			token, err := client.Login(cmd.Context(), email, password)
-			if err != nil {
-				return err
-			}
-			if err := apiclient.SaveToken(conn.APIBase, token); err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "admin session cached for %s\n", email)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&email, "email", defaultAdminEmail, "admin email")
-	cmd.Flags().StringVar(&password, "password", defaultAdminPassword, "admin password")
-	return cmd
-}
+
