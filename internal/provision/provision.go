@@ -25,12 +25,10 @@ type Provisioner interface {
 
 // LocalOptions configures the kind-on-Podman target.
 type LocalOptions struct {
-	DeployDir       string
-	ManagePodman    bool
-	LoadLocalImages bool
-	Timeout         time.Duration
-	KeepCluster     bool
-	Out             io.Writer
+	DeployDir   string
+	Timeout     time.Duration
+	KeepCluster bool
+	Out         io.Writer
 }
 
 func step(w io.Writer, format string, args ...any) {

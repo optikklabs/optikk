@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -29,23 +30,31 @@ type workload struct {
 
 // WaitRollouts blocks until every Deployment and StatefulSet in the namespace
 // reports its desired replicas ready, or the timeout elapses.
-func WaitRollouts(ctx context.Context, k kubectl.Kube, namespace string, timeout time.Duration) error {
+func WaitRollouts(ctx context.Context, w io.Writer, k kubectl.Kube, namespace string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		notReady, err := unreadyWorkloads(ctx, k, namespace)
 		if err != nil {
+			if w != nil { fmt.Fprintln(w) }
 			return err
 		}
 		if len(notReady) == 0 {
+			if w != nil { fmt.Fprintf(w, "\r\033[K") } // clear the progress line
 			return nil
 		}
+		if w != nil {
+			// Print over the current line with \r, and \033[K to clear to end of line
+			fmt.Fprintf(w, "\r\033[K    waiting for: %s", strings.Join(notReady, ", "))
+		}
 		if time.Now().After(deadline) {
+			if w != nil { fmt.Fprintln(w) }
 			return fmt.Errorf("timed out after %s", timeout)
 		}
 		select {
 		case <-ctx.Done():
+			if w != nil { fmt.Fprintln(w) }
 			return ctx.Err()
-		case <-time.After(5 * time.Second):
+		case <-time.After(3 * time.Second):
 		}
 	}
 }

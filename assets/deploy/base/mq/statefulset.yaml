@@ -19,6 +19,7 @@ spec:
       containers:
         - name: mq
           image: ghcr.io/ramantayal12/mq:latest
+          imagePullPolicy: Always
           ports:
             - { name: kafka, containerPort: 9092 }
             - { name: metrics, containerPort: 7080 }

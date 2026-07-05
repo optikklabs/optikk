@@ -15,10 +15,10 @@ import (
 
 func newAuthCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "auth",
-		Short: "Authenticate with the Optikk API",
-		Long:  "Manage authentication sessions for data commands (traces, logs, metrics, dashboards, monitors).",
-		Example: "  optikk auth login\n  optikk auth login --email user@example.com --password '...'\n  optikk auth status\n  optikk auth logout",
+		Use:         "auth",
+		Short:       "Authenticate with the Optikk API",
+		Long:        "Manage authentication sessions for data commands (traces, logs, metrics, dashboards, monitors).",
+		Example:     "  optikk auth login\n  optikk auth login --email user@example.com --password '...'\n  optikk auth status\n  optikk auth logout",
 		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
@@ -97,8 +97,8 @@ func newAuthStatusCmd(app *App) *cobra.Command {
 					fmt.Fprintf(cmd.OutOrStdout(), "  Expiry: %s\n", expTime.Format(time.RFC3339))
 				}
 			}
-			if app.Cfg.TeamID > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "  Team:   %d\n", app.Cfg.TeamID)
+			if app.Cfg.TenantID > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "  Tenant:   %d\n", app.Cfg.TenantID)
 			}
 			return nil
 		},

@@ -1,448 +1,155 @@
 # optikk
 
-A single CLI to provision the **entire Optikk stack from prebuilt container images** and
-operate it on a **local kind cluster**. It turns a manual, order-sensitive runbook into a
-handful of health-gated commands.
+One CLI to **provision** the full Optikk observability stack on a local kind cluster **and
+query** it (Datadog Pup-style). Manifests are `go:embed`-ed in the ~8 MB binary; it shells out to
+`podman`, `kind`, `kubectl` for provisioning and hits the query API directly for data commands.
 
-- **Module:** `github.com/optikklabs/optikk` · **Go:** 1.26 · **CLI:** Cobra
-- The Kubernetes manifests are **embedded** in the binary (`assets/deploy`, via `go:embed`) —
-  no external manifest tree to clone.
-- The binary is **minimal (~8 MB)**: it orchestrates, and shells out to **podman, kind, and
-  kubectl** for the heavy lifting — the same model kind itself uses with podman/docker. The
-  tools are checked up front; missing ones fail fast with install instructions.
-- Release builds are static, stripped, and installable with `go install`, Homebrew, or a
-  tarball from GitHub Releases.
-- Environment is a **`--target local` flag**, not a subcommand. The top-level verbs
-  (`up`, `down`, `status`, `verify`, `tenant`, `admin`, `team`) provision infra from scratch.
-
----
-
-## Contents
-
-- [What `up` deploys](#what-up-deploys)
-- [Container images used](#container-images-used)
-- [Architecture](#architecture)
-- [Data flow: how a trace lands](#data-flow-how-a-trace-lands)
-- [`up` provisioning flow](#up-provisioning-flow)
-- [Install / build](#install--build)
-- [Quick start (local)](#quick-start-local)
-- [Command reference](#command-reference)
-- [Configuration](#configuration)
-- [Resource sizing](#resource-sizing)
-- [Project layout](#project-layout)
-- [Extending the CLI](#extending-the-cli)
-- [Troubleshooting](#troubleshooting)
-- [Status](#status)
-
----
-
-## What `up` deploys
-
-`up` brings up the **whole stack** in the `optikk` namespace. No component is optional in v1.
-
-| Component | Role |
-|---|---|
-| **traefik** | Ingress. Routes `/api`, `/swagger`, `/health` to query; `/` to web; `x-api-key` header to the matching tenant otel-collector; `:4318` OTLP to ingest. |
-| **web** | Dashboard UI (nginx). |
-| **query** | Read/query API + auth (JWT). Seeds the super-admin on boot. |
-| **ingest** | Validates the tenant `x-api-key` against MariaDB, writes spans toward ClickHouse via mq. |
-| **otel-collector** | **One per tenant.** Receives OTLP, forwards to ingest. Created by `tenant onboard`. |
-| **mq** | Message queue / buffering between ingest and ClickHouse. |
-| **clickhouse** | Span store (`optikk.spans`). |
-| **mariadb** | Tenant/team + identity store. |
-| **metrics-server** | Installed by `up --target local` (with `--kubelet-insecure-tls`) so HPA/`kubectl top` work on kind. |
-
----
-
-## Container images used
-
-The CLI **never builds images inside the cluster** — it applies manifests and Kubernetes pulls
-the images. **All images are public**, so the default path needs no registry auth.
-
-### Application images (`ghcr`, public)
-
-| Image | Component |
-|---|---|
-| `ghcr.io/optikklabs/ingest:latest` | ingest |
-| `ghcr.io/optikklabs/query:latest` | query |
-| `ghcr.io/optikklabs/web:latest` | web |
-| `ghcr.io/ramantayal12/mq:latest` | mq |
-
-These ghcr packages are public — Kubernetes pulls them directly, no credentials required.
-
-**Optional `--load-local-images` (local target):** for air-gapped/offline runs or when testing a
-locally-built image, pass this flag to `up --target local`. The CLI runs `podman save -m` on the
-four images already present on the host and imports the archive with `kind load image-archive`.
-Not needed for a normal run.
-
-### Upstream images (public)
-
-| Image | Component |
-|---|---|
-| `clickhouse/clickhouse-server:26.6` | clickhouse |
-| `mariadb:11.4` | mariadb |
-| `otel/opentelemetry-collector-contrib:0.155.0` | otel-collector (per tenant) |
-| `traefik:v3.3` | traefik |
-| `busybox:1.36` | init containers (ingest/query) |
-
-Pulled directly from their public registries; never loaded locally.
-
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-    browser([Browser]) -->|/ , /api| traefik
-    otlp([OTLP client]) -->|x-api-key| traefik
-    otlp -->|:4318 OTLP| traefik
-
-    subgraph ns["optikk namespace"]
-        traefik["traefik<br/>(ingress)"]
-        web["web<br/>(dashboard UI)"]
-        query["query<br/>(API + auth)"]
-        collector["otel-collector-&lt;tenant&gt;<br/>(one per tenant)"]
-        ingest["ingest"]
-        mq["mq<br/>(queue)"]
-        clickhouse[("clickhouse<br/>optikk.spans")]
-        mariadb[("mariadb<br/>teams + identity")]
-
-        traefik -->|/| web
-        traefik -->|/api, /health| query
-        traefik -->|x-api-key route| collector
-        collector --> ingest
-        traefik -->|:4318| ingest
-        ingest -->|validate key| mariadb
-        ingest --> mq
-        mq --> clickhouse
-        query -->|read spans| clickhouse
-        query -->|seed admin, teams| mariadb
-    end
-```
-
-**Ingress / storage (local — kind on Podman):** host `:8080` → Traefik web, host `:4318` →
-OTLP ingest, mq + ClickHouse on local PVCs.
-
----
-
-## Data flow: how a trace lands
-
-`verify` exercises this exact path end-to-end.
-
-```mermaid
-sequenceDiagram
-    participant C as client
-    participant T as traefik
-    participant O as otel-collector-&lt;tenant&gt;
-    participant I as ingest
-    participant M as mariadb
-    participant Q as mq
-    participant CH as clickhouse
-
-    C->>T: OTLP POST /v1/traces (x-api-key: KEY)
-    T->>O: route by x-api-key
-    O->>I: forward spans
-    I->>M: validate KEY against teams
-    M-->>I: tenant ok
-    I->>Q: enqueue spans
-    Q->>CH: write to optikk.spans
-    Note over C,CH: verify then polls SELECT count() FROM optikk.spans (async, ~30s)
-```
-
-Two gotchas the CLI accounts for:
-
-1. **A fresh cluster has no tenant whose key matches the collector.** Teams are created via the
-   API (`team create`), not seeded. So the first-run order is: `up → admin login → team create →
-   tenant onboard --key <key> → verify --api-key <key>`.
-2. **ingest caches a failed key lookup for ~5 minutes** (negative cache). If you seed/create a
-   team *after* a key was already tried, `kubectl -n optikk rollout restart deploy/ingest` clears it.
-
----
-
-## `up` provisioning flow
-
-### `up --target local`
-
-```
-check required tools on PATH (podman, kind, kubectl) — fail fast with install instructions
-precheck podman machine (rootful? running? ≥5 vCPU / ≥8 GiB / ≥40 GiB disk)
-  └─ short? fail with the exact `podman machine set ...` command  (or run it with --manage-podman)
-create kind cluster "optikk"  (deploy/kind/kind-config.yaml)   [reused if it already exists]
-lift pids-limit on the node container
-[--load-local-images] podman save 4 app images  ->  kind load image-archive
-install metrics-server (+ --kubelet-insecure-tls)
-kubectl apply -k deploy/overlays/local  (server-side, retried while CRDs register)
-wait for all Deployments + StatefulSets to roll out
-ready -> query API at http://localhost:8080
-```
-
-`down` reverses it: deletes the kind cluster (or just the stack with `--keep-cluster`).
-
----
+- **Module:** `github.com/optikklabs/optikk` · **Go 1.26** · **Cobra**
+- Env is a flag (`--target local`, the default), not a subcommand.
+- Three command families: **ops** (`init`/`down`/`status`/`verify`/`tenant`/`admin`/`team`) provision
+  infra; **account** (`signup`/`login`/`onboard`/`keys`) self-serve onboarding against a running API;
+  **data** (`traces`/`logs`/`metrics`/`services`/`infra`/`llm`/`saturation`/`dashboards`/`monitors`)
+  read the query API — no `kubectl` needed, TTY-aware (tables for humans, JSON for pipes).
 
 ## Install
 
-The Kubernetes manifests are embedded, so `optikk` runs from any directory with no external
-files to clone.
+```bash
+go install github.com/optikklabs/optikk@latest      # Go 1.26+
+export PATH="$(go env GOPATH)/bin:$PATH"
+# or: brew install optikklabs/tap/optikk  |  curl a release tarball  |  make build
+```
+Provisioning needs `podman` (rootful, ≥5 vCPU / ≥8 GiB RAM / ≥40 GiB disk — under 8 GiB ClickHouse
+OOMs), `kind`, `kubectl` on PATH. `optikk doctor` checks them; `init` fails fast with install hints.
 
-### Prerequisites
+## Quick start (self-serve onboarding)
 
-The CLI shells out to three standard tools; `up` checks for them and prints these commands if
-any is missing:
-
-| Tool | Install (macOS) | Docs |
-|---|---|---|
-| **podman** (rootful machine, ≥8 GiB RAM) | `brew install podman` | https://podman.io/docs/installation |
-| **kind** | `brew install kind` | https://kind.sigs.k8s.io/docs/user/quick-start/#installation |
-| **kubectl** | `brew install kubectl` | https://kubernetes.io/docs/tasks/tools/ |
+Against a running API (local or hosted via `--api-url`), go from zero to your first trace
+without `kubectl`:
 
 ```bash
-# Homebrew (macOS/Linux, after the release tap is published)
-brew install optikklabs/tap/optikk
-
-# Go (any platform, Go 1.26+)
-go install github.com/optikklabs/optikk@latest
-
-# Raw binary (macOS/Linux, amd64/arm64) — from a GitHub Release
-curl -L https://github.com/optikklabs/optikk/releases/download/vX.Y.Z/optikk_X.Y.Z_darwin_arm64.tar.gz | tar xz
-./optikk --help
+optikk onboard                             # signup (or reuse session) -> wait for collector -> print OTLP snippet -> wait for first trace
+# or step by step:
+optikk signup                              # create account + team, print ingest api_key, cache JWT
+optikk login                               # browser device login instead of a password (RFC 8628)
+optikk demo send                           # push synthetic traces (no service needed) -> see data in seconds
+# then point your OpenTelemetry SDK at the printed endpoint + x-api-key, and:
+optikk verify --remote                     # poll onboarding status (collector ready? first trace landed?) — no cluster access
+optikk keys rotate                         # issue a fresh ingest key   |   optikk keys revoke --yes  to disable ingest
 ```
-
-### Run via `go install`
-
-`go install` drops the `optikk` binary in `$(go env GOPATH)/bin`. Add that to your `PATH`, then run it directly:
-
-```bash
-go install github.com/optikklabs/optikk@latest
-export PATH="$(go env GOPATH)/bin:$PATH"   # add to your shell profile to persist
-
-optikk --help      # verify install
-optikk up          # provision the local (kind) stack
-```
-
-Build from source: `make build`; install to `/usr/local/bin` with `make install` or override
-`PREFIX=/path make install`. Developing against a live manifest tree instead of the embedded
-copy? Point at it with `--deploy-dir PATH`.
-
----
 
 ## Quick start (local)
 
 ```bash
-# 1. Check local tools, then provision cluster + full stack
-optikk doctor
-optikk up                                # add --load-local-images only for offline/local builds
-
-# 2. Health + trace roundtrip against the default tenant key
-optikk verify
-
-# 3. Seed + cache the platform super-admin
-optikk admin setup
-optikk admin login                       # defaults: admin@optikk.dev / Password123!
-
-# 4. Create a team -> get its api_key (this is the tenant key)
-optikk team create demo                  # prints team_id, slug, api_key K
-optikk team member add u@x.com --team <id> --password 'Secret123!'
-
-# 5. Onboard a per-tenant collector and verify with its key
-optikk tenant onboard demo --key K
-optikk verify --api-key K
-
-# 6. Inspect / tear down
-optikk status
-optikk down
+optikk doctor                              # verify podman/kind/kubectl
+optikk init                                # provision kind cluster + full stack -> API at :8080
+optikk verify                              # /health + OTLP roundtrip + ClickHouse count assert
+optikk admin setup && optikk admin login   # seed + cache super-admin (admin@optikk.dev / Password123!)
+optikk team create demo                    # prints team_id, slug, api_key K  (K == tenant key)
+optikk tenant onboard demo --key K         # per-tenant otel-collector
+optikk verify --api-key K                  # keyed trace lands
+optikk status                              # pod readiness   |   optikk down  to tear down
 ```
+First-run order matters: a fresh cluster has **no** team matching the collector key, and ingest
+**negative-caches a failed key for ~5 min** — so create the team *before* first verifying its key.
+If a key was tried too early: `kubectl -n optikk rollout restart deploy/ingest`.
 
----
+## Global flags
 
-## Command reference
+Ops: `--target local` (default) · `--config PATH` · `--deploy-dir PATH` · `-v/--verbose`.
+Data: `--api-url`/`OPTIKK_API_URL` (default `http://localhost:8080`) · `--team-id`/`OPTIKK_TEAM_ID`
+(`X-Team-Id` header) · `-o/--output` `table|json|yaml` · `--agent`/`FORCE_AGENT_MODE=1` (JSON, no prompts).
+Most data commands take `--from 1h --to now` (accepts `15m`/`7d`/ISO8601/epoch-ms) and `-q/--query`
+(Datadog-style DSL, e.g. `service:api status:error has_error:true`).
 
-Persistent flags (all commands): `--target local` (default `local`) · `--config PATH` ·
-`--deploy-dir PATH` · `--verbose/-v`.
+## Ops commands
 
-### `optikk doctor`
-Check that `podman`, `kind`, and `kubectl` are installed before provisioning.
-Aliases: `check`, `preflight`.
+| Command | Does |
+|---|---|
+| `doctor` | Check `podman`/`kind`/`kubectl` are installed. Aliases: `check`, `preflight`. |
+| `init` | Provision cluster + deploy full stack. `[--timeout 10m]`. Aliases: `start`, `deploy`, `up`. |
+| `down` | Tear down stack + cluster. `[--keep-cluster]`. Aliases: `stop`, `destroy`. |
+| `status` | List `optikk`-namespace pods + readiness. Aliases: `ps`, `pods`. |
+| `verify` | `/health` → OTLP trace with `x-api-key` → assert ClickHouse span count rose (polls ~30s). `[--api-key c3448fae] [--trace-file F]`. `--remote` verifies via the query API only (onboarding status; no cluster access). |
+| `tenant onboard <slug> --key K` / `offboard <slug>` | Render + apply/delete the per-tenant otel-collector. |
+| `admin setup` / `admin login` | `setup` reseeds super-admin (create-if-absent); `login` caches JWT at `~/.optikk/token.json`. `[--email E] [--password P]`. |
+| `team create <name>` / `team member add <email>` | `create` (admin-gated) prints `team_id`/`slug`/`api_key`; `member add --team ID --password P` maps to create-user. |
+| `config show` · `config get-contexts` · `config set-context <name> [--api-url U] [--team-id N]` · `config use-context <name>` | Print merged config; list/add/switch named contexts (kubectl/gh-style) for multiple stacks. Aliases: `cfg`, `contexts`. |
+| `completion` · `version` | Gen bash/zsh/fish/powershell completion; print version/commit/date. |
 
-### `optikk up`
-Provision infra from scratch + deploy the full stack for `--target`.
-`[--manage-podman] [--load-local-images] [--timeout 10m]`
-Aliases: `start`, `deploy`.
+## Account & onboarding commands
 
-### `optikk down`
-Tear down the stack + the cluster it created. `[--keep-cluster]`
-Aliases: `stop`, `destroy`.
+Self-serve against a running API (no `kubectl`). All accept `--api-url`/`OPTIKK_API_URL`.
 
-### `optikk status`
-List `optikk`-namespace pods + readiness for `--target`.
-Aliases: `ps`, `pods`.
+| Command | Does |
+|---|---|
+| `signup` | `POST /api/v1/auth/signup`: create account + team, print the ingest `api_key` + OTLP snippet, cache the JWT at `~/.optikk/token.json`. `[--email E] [--password P] [--name N] [--org O]` (prompted if omitted). |
+| `login` | Browser device-authorization login (RFC 8628): prints a code, opens the approval page, polls until you confirm — no password paste. |
+| `onboard` | One shot: signup (or reuse cached session) → wait for your collector → print the `OTEL_EXPORTER_OTLP_*` snippet → wait until your first trace lands. `[--first-data-timeout 10m]` + the signup flags. |
+| `demo send` | Push synthetic OTLP traces (fresh timestamps, unique IDs) with your ingest key — no cluster access, no instrumented service. `[--api-key K] [--count N]`. Then `optikk traces search`. |
+| `keys rotate` / `keys revoke --yes` | `rotate` issues a fresh ingest key (old key works ~5m until the ingest cache expires); `revoke` disables ingest for the team. Alias: `key`. |
 
-### `optikk verify`
-`/health` 200 → POST one OTLP trace with `x-api-key` → assert the ClickHouse span count rose
-(polls up to 30s; ingestion is async). `[--api-key c3448fae] [--trace-file <deploy>/example-trace.json]`
-Alias: `smoke`.
+`signup`/`onboard` derive the OTLP endpoint from the API URL (hosted: `api.<domain>` → `ingest.<domain>:4318`); set `OTEL_EXPORTER_OTLP_ENDPOINT` to override the printed value for a non-standard deployment.
 
-### `optikk tenant onboard <slug> --key KEY` / `optikk tenant offboard <slug>`
-Materialize `deploy/tenants/_template` for `<slug>`, create `otel-collector-<slug>-secret`,
-render + apply (or delete) the per-tenant otel-collector.
+## Data commands
 
-### `optikk admin setup` / `optikk admin login`
-- `setup [--email E] [--password P]` — patch query's admin secret and restart so query reseeds
-  the super-admin (**create-if-absent**: an existing admin's password is unchanged).
-- `login [--email E] [--password P]` — `POST /api/v1/auth/login`, cache the JWT at
-  `~/.optikk/token.json` for the `team` commands.
+All read the query API. Row-list verbs render tables; analytical/graph/tree verbs emit raw JSON.
 
-### optikk team create <name> / optikk team member add <email>
-- `create <name> [--org O] [--slug S]` — admin-gated; prints `team_id`, `slug`, `api_key`
-  (the `api_key` is what `tenant onboard --key` consumes).
-- `member add <email> --team ID --password P [--name N] [--role R]` — admin-gated; creates a
-  user assigned to the team (there is no dedicated member endpoint — this maps to create-user).
+| Group | Subcommands |
+|---|---|
+| `auth` | `login [--email E] [--password P]` · `status` · `logout` |
+| `traces` | `search -q Q` · `get <id>` · `trend` · `critical-path <id>` · `error-path <id>` · `service-map <id>` · `errors <id>` · `related <id> --service S --operation O` |
+| `logs` | `search -q Q` · `facets -q Q` · `summary -q Q` · `trend -q Q` |
+| `metrics` | `list` · `query --metric M --aggregation A` · `tags <metric>` |
+| `services` | `list` (fleet RED) · `topology` (dependency graph) · `summary <service>` · `top-endpoints` · `errors` (error groups) |
+| `infra` | `hosts` · `nodes` · `pods` · `cpu` (per-instance) · `memory` (per-instance) |
+| `llm` | `apps` · `cost --group-by model` · `timeseries --metric spend\|latency\|tokens_by_vendor` · `traces [--limit N]` · `trace <id>` |
+| `saturation` | `db-systems` · `db-latency` · `db-slow-queries` · `db-ops` · `kafka-topology` · `kafka-throughput` · `kafka-groups` |
+| `dashboards` | `list` · `get <id>` · `create` · `update <id>` · `delete <id>` · `export <id> -o F` · `import -f F` · `url <id>` |
+| `monitors` | `list [--status triggered]` · `get <id>` · `create -f F` · `update <id> -f F` · `delete <id>` · `mute <id> --duration 1h` · `unmute <id>` · `ack <id>` · `test <id>` |
+| `agent` | `schema` — JSON command-tree for AI discoverability. |
 
-### Data Commands (Datadog Pup-style)
-The CLI includes a full suite of commands for querying and managing observability data, heavily modeled after Datadog's `pup` CLI. These commands connect directly to the query API (no `kubectl` needed) and support TTY auto-detection (pretty tables for humans, raw JSON for pipes).
-
-#### **Auth (`optikk auth`)**
-- `login [--email E] [--password P]` — Authenticate and cache the JWT at `~/.optikk/token.json`.
-- `status` — Check if the current session is valid.
-- `logout` — Clear the local session.
-
-#### **Logs (`optikk logs`)**
-- `search [--query Q] [--from T]` — Search logs using a query (e.g., `severity_text:ERROR`).
-
-#### **Traces (`optikk traces`)**
-- `search [--query Q] [--from T]` — Search traces based on tags, service name, or status.
-- `get <traceId>` — Retrieve full details of a specific trace.
-- `trend` — View aggregate trace trends and statistics.
-
-#### **Metrics (`optikk metrics`)**
-- `list` — List all available metrics in the current timeframe.
-- `query [--metric M] [--aggregation A] [--from T]` — Query metric timeseries data.
-- `tags <metricName>` — List all tags reporting for a specific metric.
-
-#### **Monitors (`optikk monitors`)**
-- `list [--status S]` — List all monitors, optionally filtered by status (e.g., `triggered`).
-- `get <id>` — View the configuration and current state of a specific monitor.
-- `create` — Create a new monitor interactively or via JSON payload.
-- `update <id>` — Update an existing monitor.
-- `delete <id>` — Delete a monitor.
-- `mute <id> [--duration D]` — Mute alerts for a monitor for a specific duration (e.g., `1h`).
-- `unmute <id>` — Unmute alerts for a monitor.
-- `ack <id>` — Acknowledge an active alert.
-- `test <id>` — Simulate a trigger to test alerting integrations.
-
-#### **Dashboards (`optikk dashboards`)**
-- `list` — List all dashboards.
-- `get <id>` — View a specific dashboard's layout and widgets.
-- `create` — Create a new dashboard.
-- `update <id>` — Update an existing dashboard.
-- `delete <id>` — Delete a dashboard.
-- `export <id> [-o dash.json]` — Export a dashboard as a JSON file.
-- `import [-f dash.json]` — Import a dashboard from a JSON file.
-- `url <id>` — Print the direct web URL to the dashboard.
-
-#### **Agent Integration (`optikk agent`)**
-- `schema` — Emits a JSON command tree schema intended for AI discoverability and AI agents.
-
-**Persistent Data Flags:**
-- `--api-url` (or `OPTIKK_API_URL`): query API base (default `http://localhost:8080`)
-- `--team-id` (or `OPTIKK_TEAM_ID`): `X-Team-Id` header context
-- `--output` (or `OPTIKK_OUTPUT`): `table` | `json` | `yaml`
-- `--agent` (or `FORCE_AGENT_MODE=1`): JSON output, skips interactive confirmations
-
-### optikk config show · optikk completion · optikk version
-Print the merged config; generate shell completion for `bash`, `zsh`, `fish`, or `powershell`;
-print version, commit, and build date.
-
----
-
-## Configuration
-
-Precedence: **defaults → `optikk.yaml` (cwd) or `~/.optikk/config`/`~/.optikk/optikk.yaml` → `OPTIKK_*` env → flags**.
-Example `optikk.yaml`:
-
-```yaml
-target: local
-admin:
-  email: admin@optikk.dev
-  password: Password123!
-```
-
-State the CLI writes: the admin session cache at `~/.optikk/token.json` (per API base).
-
----
-
-## Resource sizing
-
-Pod resource **requests** live in `deploy/` and are applied unchanged. The CLI owns **VM**
-sizing and validates the host floor before `up`.
-
-### Local — kind on Podman
-Cluster total for 1 tenant ≈ **1.5 vCPU / ~3 GiB / ~12 GiB disk**. Podman machine floor the CLI
-enforces: **≥5 vCPU, ≥8 GiB RAM (hard floor — less and ClickHouse OOMs), ≥40 GiB disk**, rootful
-and running. Short? `up` fails with the exact `podman machine set --cpus/--memory/--disk-size`
-command (or fixes it with `--manage-podman`).
-
----
-
-## Project layout
+## Architecture
 
 ```
-pro/optikk/
-  main.go                 cobra Execute()
-  assets/                 embedded deploy/ kustomize tree (go:embed) + Materialize()
-  cmd/                    one file per command; root.go wires target + persistent flags
-    up down status verify tenant admin team config version   (+ root)
-  internal/
-    config/               lightweight YAML/env loader; flags override in cmd/root.go
-    deploypath/           resolve manifests (embedded assets/deploy, or --deploy-dir override)
-    prereq/               fail-fast checks for podman/kind/kubectl with install hints
-    hostexec/             podman machine precheck (+ opt-in manage), pids-limit
-    localcluster/         kind create/delete/load via the kind CLI (Podman provider)
-    kubectl/              kubectl runner bound to the cluster's kubeconfig context
-    k8sapply/             kubectl apply -k (server-side, CRD-retry) + rollout waits,
-                          metrics-server install
-    provision/            Local "up/down" orchestrator
-    target/               resolve live conn (kubectl context + API/OTLP base) per target
-    verify/               /health + OTLP roundtrip + ClickHouse count assert (kubectl exec)
-    status/               pod readiness table
-    tenant/               onboard/offboard per-tenant otel-collector
-    apiclient/            query API client: login (JWT cache) + CreateTeam/CreateUser
-    adminseed/            patch query admin secret + restart to reseed
+Browser ─/ , /api─┐                        ┌─ web (dashboard UI)
+OTLP client ──────┤  traefik (ingress) ────┼─ query (API + JWT auth) ─┬─ clickhouse (optikk.spans)
+   x-api-key ─────┘        │                └─ otel-collector-<tenant> │
+   :4318 OTLP ────────────>│                       │                  └─ mariadb (teams + identity)
+                           └─ ingest <── collector ─┘ ── validate key (mariadb) ── mq ── clickhouse
 ```
+`init` deploys the whole stack (no optional components): traefik, web, query, ingest, one
+otel-collector per tenant, mq, clickhouse, mariadb, metrics-server (kind, `--kubelet-insecure-tls`).
+App images are public `ghcr.io/optikklabs/{ingest,query,web}` + `ghcr.io/ramantayal12/mq`; upstream
+images: `clickhouse:26.6`, `mariadb:11.4`, `otel-collector-contrib:0.155.0`, `traefik:v3.3`.
+The app images are multi-arch (`linux/amd64` + `linux/arm64`); kind pulls them straight from ghcr and
+selects the node's architecture, so Apple Silicon runs arm64 natively.
 
----
+## Layout & extending
 
-## Extending the CLI
-
-- **New command:** add `cmd/<name>.go` exposing `func newXCmd(app *App) *cobra.Command` and add
-  one line to the `root.AddCommand(...)` list. Shared state (config, deploy dir) hangs off the
-  injected `*App` — no globals, no edits to existing commands.
-- **New target** (e.g. EKS): implement the `up`/`down` orchestrator in `internal/provision` and
-  resolve its connection in `internal/target`. `k8sapply`, `verify`, and rollout-wait are shared,
-  so a new target reuses the apply/verify path unchanged.
-
----
+```
+main.go            cobra Execute()
+assets/            embedded deploy/ kustomize tree (go:embed)
+cmd/               one file per command; root.go wires flags + AddCommand
+internal/
+  config deploypath prereq hostexec localcluster kubectl k8sapply provision target
+  verify status tenant apiclient adminseed          (ops)
+  queryclient/     typed query-API client (one file per domain)
+  clitime dsl output                                (data: range parsing, DSL, table/JSON writer)
+```
+**New command:** add `cmd/<name>.go` with `func newXCmd(app *App) *cobra.Command` and one line in
+`root.AddCommand`. **New data domain:** add `internal/queryclient/<domain>.go` (typed methods over
+`do`) + `cmd/<domain>.go`. Shared state hangs off the injected `*App` — no globals.
 
 ## Troubleshooting
 
-| Symptom | Cause / fix |
+| Symptom | Fix |
 |---|---|
-| `up` refuses at precheck | Podman machine below floor or not rootful/running — run the printed `podman machine set ...` (or use `--manage-podman`). |
-| `missing required tools` on `up` | Install the printed tools (podman/kind/kubectl) — the error includes the exact brew command and docs link for each. |
-| Offline images | Images are public so a normal `up` pulls them; for air-gapped runs use `--load-local-images` (the 4 app images must exist on the host — `podman images`). |
-| `verify` span count stays 0 | No team matches the tenant key on a fresh cluster — `team create` then `tenant onboard --key`. If a key was tried too early, `kubectl -n optikk rollout restart deploy/ingest` clears the 5-min negative cache. |
-| `login` 405 | The query API is under `/api` (Traefik `PathPrefix(/api)`); the client already targets `<base>/api`. |
-| `team`/`admin` commands say no session | Run `optikk admin login` first (caches JWT at `~/.optikk/token.json`). |
-
----
+| `init` refuses at precheck | Podman below floor / not rootful — run the printed `podman machine set …`. |
+| `missing required tools` | Install printed podman/kind/kubectl (error has exact brew cmd + docs). |
+| `verify` span count stays 0 | No team matches the key — `team create` then `tenant onboard --key`; if tried early, `rollout restart deploy/ingest`. |
+| data cmd 405 / no session | API is under `/api` (client already targets `<base>/api`); run `optikk auth login` (or `admin login`) first. |
 
 ## Status
 
-| Milestone | State |
-|---|---|
-| M0 scaffold + git repo + config | ✅ verified |
-| M1 `up`/`down --target local` | ✅ verified (full destroy + from-scratch rebuild) |
-| M2 `status` + `verify` | ✅ verified (0→1 span roundtrip) |
-| M4 `tenant onboard/offboard` | ✅ verified (keyed trace lands, cleanup works) |
-| M5 `admin` + `team` | ✅ verified (login, team create, member add, reseed) |
-| M3 `up`/`down --target gcp` | ❌ removed — the CLI is local-only; cloud targets are out of scope for the minimal binary |
+`init`/`down`, `status`/`verify`, `tenant onboard/offboard`, `admin`+`team`, and the full data-command
+suite are verified against a live local stack. GCP/cloud targets are out of scope (local-only).

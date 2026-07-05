@@ -12,6 +12,8 @@ spec:
       labels:
         app: query
     spec:
+      # Grants the onboarding provisioner its apply permissions (query/rbac.yaml).
+      serviceAccountName: query
       # query runs MySQL migrations on boot; wait for the datastores.
       initContainers:
         - name: wait-deps
@@ -25,7 +27,7 @@ spec:
       containers:
         - name: query
           image: ghcr.io/optikklabs/query:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - { name: http, containerPort: 19090 }
           env:

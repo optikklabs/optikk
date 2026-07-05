@@ -70,6 +70,12 @@ func postTrace(ctx context.Context, otlpBase, apiKey, traceFile string) error {
 	if err != nil {
 		return fmt.Errorf("read trace file: %w", err)
 	}
+	return PostTraceBytes(ctx, otlpBase, apiKey, body)
+}
+
+// PostTraceBytes sends an OTLP/HTTP trace payload to <otlpBase>/v1/traces with
+// the given ingest key. Reused by `demo send` to push synthetic traffic.
+func PostTraceBytes(ctx context.Context, otlpBase, apiKey string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, otlpBase+"/v1/traces", bytes.NewReader(body))
 	if err != nil {
 		return err

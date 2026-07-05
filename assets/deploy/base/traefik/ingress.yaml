@@ -40,5 +40,5 @@ spec:
       middlewares:
         - name: ratelimit
 # otlp-http / otlp-grpc IngressRoutes are no longer defined here — otel-collector is
-# deployed per tenant (deploy/tenants/<slug>), each with its own IngressRoute matching
+# deployed per tenant (deploy/tenants/<id>), each with its own IngressRoute matching
 # Header(`x-api-key`, ...) on these same entrypoints. See deploy/README.md.

@@ -3,7 +3,6 @@ package hostexec
 import (
 	"os"
 	"os/exec"
-	"strconv"
 )
 
 // run executes a host command, streaming its output to the CLI's stdio.
@@ -14,4 +13,7 @@ func run(name string, args ...string) error {
 	return cmd.Run()
 }
 
-func itoa(n int) string { return strconv.Itoa(n) }
+// StartContainer ensures a Podman container is running.
+func StartContainer(name string) error {
+	return run("podman", "start", name)
+}

@@ -43,6 +43,11 @@ func (c *Cluster) Create(configFile string, wait time.Duration) error {
 		"--wait", wait.String())
 }
 
+// ExportKubeconfig writes the kubeconfig for the cluster.
+func (c *Cluster) ExportKubeconfig() error {
+	return c.stream("export", "kubeconfig", "--name", c.Name)
+}
+
 // Delete removes the cluster.
 func (c *Cluster) Delete() error {
 	return c.stream("delete", "cluster", "--name", c.Name)
@@ -56,11 +61,6 @@ func (c *Cluster) Context() string {
 // NodeContainer is the Podman container name of the control-plane node.
 func (c *Cluster) NodeContainer() string {
 	return fmt.Sprintf("%s-control-plane", c.Name)
-}
-
-// LoadImageArchive imports a (multi-image) tar into every node's containerd.
-func (c *Cluster) LoadImageArchive(archivePath string) error {
-	return c.stream("load", "image-archive", archivePath, "--name", c.Name)
 }
 
 // capture runs kind and returns stdout; stderr is folded into the error.

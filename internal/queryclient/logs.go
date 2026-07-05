@@ -43,3 +43,38 @@ func (c *Client) SearchLogs(ctx context.Context, req LogsQueryRequest) (*LogsQue
 	}
 	return &resp, nil
 }
+
+// LogsRangeRequest is the shared body for facets, summary, and trend.
+type LogsRangeRequest struct {
+	StartTime int64 `json:"startTime"`
+	EndTime   int64 `json:"endTime"`
+
+	dsl.LogFilters
+}
+
+// LogFacets returns facet counts over matching logs (JSON).
+func (c *Client) LogFacets(ctx context.Context, req LogsRangeRequest) (any, error) {
+	var resp any
+	if err := c.do(ctx, "POST", "/v1/logs/facets", req, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// LogSummary returns aggregate summary stats over matching logs (JSON).
+func (c *Client) LogSummary(ctx context.Context, req LogsRangeRequest) (any, error) {
+	var resp any
+	if err := c.do(ctx, "POST", "/v1/logs/summary", req, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// LogTrend returns the log volume trend over matching logs (JSON).
+func (c *Client) LogTrend(ctx context.Context, req LogsRangeRequest) (any, error) {
+	var resp any
+	if err := c.do(ctx, "POST", "/v1/logs/trend", req, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}

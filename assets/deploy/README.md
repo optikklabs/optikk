@@ -44,7 +44,7 @@ Service are ClusterIP (internal only).
 ## Multi-tenant otel-collector
 
 There is no shared/default otel-collector — `deploy/base/otel-collector/` is a
-template, instantiated once per tenant under `deploy/tenants/<slug>/` with that
+template, instantiated once per tenant under `deploy/tenants/<id>/` with that
 tenant's real API key baked in as `OPTIKK_API_KEY`. Traefik routes each request to
 the right tenant's collector by matching the `x-api-key` the caller sends
 (`Header(`x-api-key`, ...)` on the `otlp-http`/`otlp-grpc` entrypoints) — clients keep
@@ -60,33 +60,34 @@ entirely: since a collector only ever sees one tenant's traffic, its existing st
 including the connector-derived ones.
 
 `query` and `ingest` are **not** part of this pattern — they stay single, shared
-Deployments. `ingest` resolves the tenant per-request from `teams.api_key` (same
+Deployments. `ingest` resolves the tenant per-request from `tenant.api_key` (same
 mechanism, just at the next hop). `query` authenticates human users via JWT
 (`dtid`/`tids` claims + `TenantMiddleware`), which needs no per-tenant routing at all
 since every query is already scoped by `team_id` inside the query itself.
 
 ### Onboarding a tenant
 
-After `POST /v1/teams` (query, admin-gated) returns a new `{team_id, api_key}`:
+After `POST /v1/auth/signup` (pre-auth) returns a new `{tenant, api_key}` —
+or simply run `optikk onboard --local`, which does all of this for you:
 
-1. `cp -r deploy/tenants/_template deploy/tenants/<slug>`
-2. Replace every `<slug>` and `REPLACE_WITH_<TEAM_SLUG_KEY>` placeholder in the new
-   directory's `kustomization.yaml` and `ingressroute.yaml` with the real slug and key.
+1. `cp -r deploy/tenants/_template deploy/tenants/<id>`
+2. Replace every `<id>` and `REPLACE_WITH_<TENANT_KEY>` placeholder in the new
+   directory's `kustomization.yaml` and `ingressroute.yaml` with the real id and key.
 3. Apply the real key out-of-band — **do not commit it**:
    ```bash
-   kubectl create secret generic otel-collector-<slug>-secret -n optikk \
+   kubectl create secret generic otel-collector-<id>-secret -n optikk \
      --from-literal=api-key='<real key>' --dry-run=client -o yaml | kubectl apply -f -
    ```
-4. Add `../../tenants/<slug>` to the target overlay's `resources:`
+4. Add `../../tenants/<id>` to the target overlay's `resources:`
    (`overlays/local/kustomization.yaml` or `overlays/gcp/kustomization.yaml`).
 5. `kubectl apply -k deploy/overlays/<env>`
 
-This is a **manual** step, not automated — `teams` in MySQL and the tenant
-directories/overlay list here are two separate sources of truth. Deactivating a team
-(`teams.active = 0`) does not by itself stop its collector.
+This is a **manual** step, not automated — `tenant` in MySQL and the tenant
+directories/overlay list here are two separate sources of truth. Deactivating a tenant
+(`tenant.active = 0`) does not by itself stop its collector.
 
 **Offboarding**: remove the tenant's line from the overlay's `resources:`,
-`kubectl delete -k deploy/tenants/<slug> -n optikk`, delete `deploy/tenants/<slug>`.
+`kubectl delete -k deploy/tenants/<id> -n optikk`, delete `deploy/tenants/<id>`.
 
 ## Layout
 
@@ -283,7 +284,7 @@ in `overlays/gcp` patches: ClickHouse 2 vCPU/8Gi (+100Gi SSD +GCS cold), MariaDB
   headroom by raising `resources`. For `otel-collector`, `base/otel-collector/hpa.yaml`
   is the shared template every tenant is instantiated from — edit it to change the
   default for all tenants, or add a per-tenant `patches:` entry in
-  `deploy/tenants/<slug>/kustomization.yaml` to size one tenant differently (e.g. a
+  `deploy/tenants/<id>/kustomization.yaml` to size one tenant differently (e.g. a
   low-volume tenant that doesn't need 5 replicas of headroom).
 - **ClickHouse vertically** — edit the `resources` in `overlays/gcp/patches/clickhouse-gcs.yaml`,
   then `kubectl -n optikk rollout restart statefulset/clickhouse`. **Grow its disk** (premium-rwo

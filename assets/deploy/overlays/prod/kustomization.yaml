@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Prod: single-node k3s behind a public IP. Adds TLS (cert-manager + Let's Encrypt)
+# on api./ingest.optikk.in, a LoadBalancer Traefik Service, and real secrets sourced
+# from gitignored secrets/*.env. Tenants are provisioned at runtime by query (not
+# listed here) — unlike overlays/local, prod has no deterministic overlay tenant.
+resources:
+  - ../../base
+  - cert-manager/issuer.yaml
+  - cert-manager/certificate.yaml
+  - traefik-tls.yaml
+
+patches:
+  # Publicly reachable Traefik.
+  - path: patches/traefik-service.yaml
+  # Terminate TLS on the secure entrypoints using the default TLSStore cert.
+  # web (:80) stays plaintext so the ACME HTTP-01 challenge can be served.
+  - target:
+      kind: Deployment
+      name: traefik
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --entrypoints.websecure.http.tls=true
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --entrypoints.otlp-grpc.http.tls=true
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --entrypoints.otlp-http.http.tls=true
+
+# Real credentials replace the base placeholders. Values come from gitignored
+# secrets/*.env (copy the .env.example templates). disableNameSuffixHash keeps the
+# secret names stable so the base secretKeyRefs still resolve.
+secretGenerator:
+  - name: query-secret
+    behavior: replace
+    envs:
+      - secrets/query.env
+  - name: mariadb-secret
+    behavior: replace
+    envs:
+      - secrets/mariadb.env
+  - name: clickhouse-secret
+    behavior: replace
+    envs:
+      - secrets/clickhouse.env
+
+generatorOptions:
+  disableNameSuffixHash: true

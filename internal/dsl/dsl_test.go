@@ -49,9 +49,9 @@ func TestTokenize(t *testing.T) {
 
 func TestParseTraceFilters(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		check   func(ParseResult) string
+		name  string
+		input string
+		check func(ParseResult) string
 	}{
 		{
 			name:  "simple eq",

@@ -20,7 +20,7 @@ type App struct {
 }
 
 const (
-	annotationNoConfig  = "optikk/no-config"
+	annotationNoConfig = "optikk/no-config"
 	// annotationSkipDeploy marks commands that need config but not deploy/.
 	// Auth and data commands use this — they only need API URL + token.
 	annotationSkipDeploy = "optikk/skip-deploy"
@@ -35,7 +35,7 @@ type rootFlags struct {
 
 	// Data-CLI flags.
 	apiURL    string
-	teamID    int64
+	tenantID  int64
 	output    string
 	agentMode bool
 }
@@ -46,9 +46,9 @@ func NewRootCmd() *cobra.Command {
 	f := &rootFlags{}
 
 	root := &cobra.Command{
-		Use:           "optikk",
-		Short:         "Provision, operate, and query the Optikk observability stack",
-		Long:          "optikk provisions and operates the full Optikk observability stack, and provides Datadog Pup-style data commands for traces, logs, metrics, dashboards, and monitors.",
+		Use:   "optikk",
+		Short: "Provision, operate, and query the Optikk observability stack",
+		Long:  "optikk provisions and operates the full Optikk observability stack, and provides Datadog Pup-style data commands for traces, logs, metrics, dashboards, and monitors.",
 		Example: `  # Ops commands
   optikk doctor
   optikk up
@@ -81,7 +81,7 @@ func NewRootCmd() *cobra.Command {
 
 	// Data-CLI persistent flags (Datadog Pup-style).
 	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL (OPTIKK_API_URL, default http://localhost:8080)")
-	pf.Int64Var(&f.teamID, "team-id", 0, "team context for X-Team-Id header (OPTIKK_TEAM_ID)")
+	pf.Int64Var(&f.tenantID, "tenant-id", 0, "tenant context for X-Tenant-Id header (OPTIKK_TENANT_ID)")
 	pf.StringVarP(&f.output, "output", "o", "", "output format: table|json|yaml (auto-detected from TTY)")
 	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, skip confirmations (FORCE_AGENT_MODE)")
 
@@ -94,7 +94,6 @@ func NewRootCmd() *cobra.Command {
 		newDoctorCmd(),
 		newTenantCmd(app),
 		newAdminCmd(app),
-		newTeamCmd(app),
 		newConfigCmd(app),
 		newCompletionCmd(root),
 		newVersionCmd(app),
@@ -103,9 +102,18 @@ func NewRootCmd() *cobra.Command {
 	// Data commands (Datadog Pup-style).
 	root.AddCommand(
 		newAuthCmd(app),
+		newLoginCmd(app),
+		newSignupCmd(app),
+		newOnboardCmd(app),
+		newKeysCmd(app),
+		newDemoCmd(app),
 		newTracesCmd(app),
 		newLogsCmd(app),
 		newMetricsCmd(app),
+		newServicesCmd(app),
+		newInfraCmd(app),
+		newLLMCmd(app),
+		newSaturationCmd(app),
 		newDashboardsCmd(app),
 		newMonitorsCmd(app),
 		newAgentCmd(),
@@ -152,8 +160,8 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	if cmd.Flags().Changed("api-url") {
 		cfg.ApiURL = f.apiURL
 	}
-	if cmd.Flags().Changed("team-id") {
-		cfg.TeamID = f.teamID
+	if cmd.Flags().Changed("tenant-id") {
+		cfg.TenantID = f.tenantID
 	}
 	if cmd.Flags().Changed("output") {
 		cfg.Output = f.output

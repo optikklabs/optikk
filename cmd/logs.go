@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -12,14 +13,50 @@ import (
 
 func newLogsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "logs",
-		Short: "Search and inspect logs",
-		Long:  "Query the logs API — search by DSL, view log details.",
+		Use:         "logs",
+		Short:       "Search and inspect logs",
+		Long:        "Query the logs API — search by DSL, view log details.",
 		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newLogsSearchCmd(app),
+		newLogsAggCmd(app, "facets", "Show facet counts over matching logs", (*queryclient.Client).LogFacets),
+		newLogsAggCmd(app, "summary", "Show aggregate summary stats over matching logs", (*queryclient.Client).LogSummary),
+		newLogsAggCmd(app, "trend", "Show the log volume trend over matching logs", (*queryclient.Client).LogTrend),
 	)
+	return cmd
+}
+
+// newLogsAggCmd builds a DSL-filtered log aggregation command emitting raw JSON.
+func newLogsAggCmd(app *App, use, short string, fn func(*queryclient.Client, context.Context, queryclient.LogsRangeRequest) (any, error)) *cobra.Command {
+	var query, from, to string
+	cmd := &cobra.Command{
+		Use:         use,
+		Short:       short,
+		Annotations: map[string]string{annotationSkipDeploy: "true"},
+		Example:     fmt.Sprintf(`  optikk logs %s --query "severity_text:ERROR" --from 1h`, use),
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
+			if err != nil {
+				return err
+			}
+			req := queryclient.LogsRangeRequest{StartTime: startMs, EndTime: endMs}
+			if query != "" {
+				result := dsl.Parse(query, dsl.LogKnownFields)
+				for _, e := range result.Errors {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s (at offset %d)\n", e.Message, e.Offset)
+				}
+				req.LogFilters = dsl.MapToLogFilters(result.Filters)
+			}
+			resp, err := fn(client, cmd.Context(), req)
+			if err != nil {
+				return err
+			}
+			return out.WriteJSON(resp)
+		},
+	}
+	cmd.Flags().StringVarP(&query, "query", "q", "", "Datadog-style DSL filter")
+	addRangeFlags(cmd, &from, &to)
 	return cmd
 }
 

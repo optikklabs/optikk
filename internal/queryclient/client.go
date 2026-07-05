@@ -1,5 +1,5 @@
 // Package queryclient is a typed HTTP client for the Optikk query API.
-// It generalises apiclient.Client by adding X-Team-Id header injection and
+// It generalises apiclient.Client by adding X-Tenant-Id header injection and
 // typed methods for traces, logs, metrics, dashboards, and monitors.
 package queryclient
 
@@ -16,20 +16,20 @@ import (
 
 // Client talks to the query API through /api.
 type Client struct {
-	base   string // e.g. http://localhost:8080/api
-	token  string
-	teamID int64
-	http   *http.Client
+	base     string // e.g. http://localhost:8080/api
+	token    string
+	tenantID int64
+	http     *http.Client
 }
 
 // New builds a query client. apiBase is the Traefik surface
 // (e.g. http://localhost:8080); the API lives under /api.
-func New(apiBase, token string, teamID int64) *Client {
+func New(apiBase, token string, tenantID int64) *Client {
 	return &Client{
-		base:   strings.TrimRight(apiBase, "/") + "/api",
-		token:  token,
-		teamID: teamID,
-		http:   &http.Client{Timeout: 30 * time.Second},
+		base:     strings.TrimRight(apiBase, "/") + "/api",
+		token:    token,
+		tenantID: tenantID,
+		http:     &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -60,8 +60,8 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
-	if c.teamID > 0 {
-		req.Header.Set("X-Team-Id", fmt.Sprintf("%d", c.teamID))
+	if c.tenantID > 0 {
+		req.Header.Set("X-Tenant-Id", fmt.Sprintf("%d", c.tenantID))
 	}
 
 	resp, err := c.http.Do(req)
@@ -106,8 +106,8 @@ func (c *Client) doRaw(ctx context.Context, method, path string, body any) ([]by
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
-	if c.teamID > 0 {
-		req.Header.Set("X-Team-Id", fmt.Sprintf("%d", c.teamID))
+	if c.tenantID > 0 {
+		req.Header.Set("X-Tenant-Id", fmt.Sprintf("%d", c.tenantID))
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {

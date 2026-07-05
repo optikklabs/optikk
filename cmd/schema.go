@@ -32,8 +32,8 @@ type AgentFlag struct {
 
 func newAgentCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "agent",
-		Short: "AI agent integrations",
+		Use:         "agent",
+		Short:       "AI agent integrations",
 		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(newAgentSchemaCmd())

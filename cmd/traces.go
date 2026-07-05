@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -12,16 +13,75 @@ import (
 
 func newTracesCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "traces",
-		Short: "Search and inspect distributed traces",
-		Long:  "Query the traces API — search by DSL, get trace details, view trends.",
+		Use:         "traces",
+		Short:       "Search and inspect distributed traces",
+		Long:        "Query the traces API — search by DSL, get trace details, view trends.",
 		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newTracesSearchCmd(app),
 		newTracesGetCmd(app),
 		newTracesTrendCmd(app),
+		newTraceAnalysisCmd(app, "critical-path", "Show the critical path through a trace", (*queryclient.Client).CriticalPath),
+		newTraceAnalysisCmd(app, "error-path", "Show the error propagation path through a trace", (*queryclient.Client).ErrorPath),
+		newTraceAnalysisCmd(app, "service-map", "Show the service dependency map for a trace", (*queryclient.Client).ServiceMap),
+		newTracesRelatedCmd(app),
+		newTraceAnalysisCmd(app, "errors", "Show the errors within a trace", (*queryclient.Client).TraceErrors),
 	)
+	return cmd
+}
+
+// newTraceAnalysisCmd builds a `traces <verb> <traceId>` command backed by a
+// client method that returns analytical JSON for one trace.
+func newTraceAnalysisCmd(app *App, use, short string, fn func(*queryclient.Client, context.Context, string) (any, error)) *cobra.Command {
+	return &cobra.Command{
+		Use:         use + " <traceId>",
+		Short:       short,
+		Args:        cobra.ExactArgs(1),
+		Annotations: map[string]string{annotationSkipDeploy: "true"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := resolveClient(app)
+			if err != nil {
+				return err
+			}
+			out := resolveOutput(cmd, app)
+			resp, err := fn(client, cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return out.WriteJSON(resp)
+		},
+	}
+}
+
+// newTracesRelatedCmd handles `traces related` which needs a time range in
+// addition to the trace id.
+func newTracesRelatedCmd(app *App) *cobra.Command {
+	var from, to, service, operation string
+	cmd := &cobra.Command{
+		Use:         "related <traceId>",
+		Short:       "Show traces sharing a service+operation with a trace",
+		Args:        cobra.ExactArgs(1),
+		Annotations: map[string]string{annotationSkipDeploy: "true"},
+		Example:     `  optikk traces related <id> --service api --operation GET /users --from 1h`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if service == "" || operation == "" {
+				return fmt.Errorf("--service and --operation are required")
+			}
+			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
+			if err != nil {
+				return err
+			}
+			resp, err := client.RelatedTraces(cmd.Context(), args[0], service, operation, startMs, endMs)
+			if err != nil {
+				return err
+			}
+			return out.WriteJSON(resp)
+		},
+	}
+	addRangeFlags(cmd, &from, &to)
+	cmd.Flags().StringVar(&service, "service", "", "service name (required)")
+	cmd.Flags().StringVar(&operation, "operation", "", "operation name (required)")
 	return cmd
 }
 
@@ -96,9 +156,9 @@ func newTracesSearchCmd(app *App) *cobra.Command {
 
 func newTracesGetCmd(app *App) *cobra.Command {
 	return &cobra.Command{
-		Use:     "get <traceId>",
-		Short:   "Get full trace details",
-		Args:    cobra.ExactArgs(1),
+		Use:         "get <traceId>",
+		Short:       "Get full trace details",
+		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := resolveClient(app)

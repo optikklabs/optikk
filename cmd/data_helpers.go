@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
+	"github.com/optikklabs/optikk/internal/clitime"
 	"github.com/optikklabs/optikk/internal/conn"
 	"github.com/optikklabs/optikk/internal/output"
 	"github.com/optikklabs/optikk/internal/queryclient"
@@ -15,24 +17,47 @@ import (
 func resolveClient(app *App) (*queryclient.Client, error) {
 	apiBase := conn.Resolve(app.Cfg.ApiURL)
 	token := app.Cfg.Token
-	teamID := app.Cfg.TeamID
+	tenantID := app.Cfg.TenantID
 
 	if token == "" {
-		base, tok, err := apiclient.LoadToken()
-		if err != nil {
-			return nil, fmt.Errorf("not authenticated — run: optikk auth login\n  (or set OPTIKK_TOKEN env var)")
+		ctx, err := apiclient.CurrentContext()
+		if err != nil || ctx.Token == "" {
+			return nil, fmt.Errorf("not authenticated — run: optikk login\n  (or set OPTIKK_TOKEN env var)")
 		}
-		token = tok
-		if app.Cfg.ApiURL == "" {
-			apiBase = base
+		token = ctx.Token
+		if app.Cfg.ApiURL == "" && ctx.APIURL != "" {
+			apiBase = ctx.APIURL
+		}
+		if tenantID == 0 {
+			tenantID = ctx.TenantID
 		}
 	}
 
-	return queryclient.New(apiBase, token, teamID), nil
+	return queryclient.New(apiBase, token, tenantID), nil
 }
 
 // resolveOutput returns an output.Writer for the current command.
 func resolveOutput(cmd *cobra.Command, app *App) *output.Writer {
 	format := output.Resolve(app.Cfg.Output, app.AgentMode)
 	return output.New(format, cmd.OutOrStdout())
+}
+
+// addRangeFlags registers the shared --from/--to time-range flags.
+func addRangeFlags(cmd *cobra.Command, from, to *string) {
+	cmd.Flags().StringVar(from, "from", "1h", "start time (1h, 15m, 7d, ISO8601, epoch-ms)")
+	cmd.Flags().StringVar(to, "to", "now", "end time")
+}
+
+// setupRange resolves the client, output writer, and parsed time range for a
+// range-scoped data command in one call.
+func setupRange(cmd *cobra.Command, app *App, from, to string) (*queryclient.Client, *output.Writer, int64, int64, error) {
+	client, err := resolveClient(app)
+	if err != nil {
+		return nil, nil, 0, 0, err
+	}
+	startMs, endMs, err := clitime.ParseRange(from, to, time.Now())
+	if err != nil {
+		return nil, nil, 0, 0, err
+	}
+	return client, resolveOutput(cmd, app), startMs, endMs, nil
 }

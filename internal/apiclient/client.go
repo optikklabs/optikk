@@ -1,4 +1,4 @@
-// Package apiclient talks to the query admin API (login, teams, users).
+// Package apiclient talks to the query admin API (login, tenants, users).
 package apiclient
 
 import (

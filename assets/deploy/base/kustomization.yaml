@@ -24,6 +24,7 @@ resources:
   - ingest/service.yaml
   - ingest/hpa.yaml
   # query
+  - query/rbac.yaml
   - query/secret.yaml
   - query/deployment.yaml
   - query/service.yaml

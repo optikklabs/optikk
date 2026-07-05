@@ -26,7 +26,7 @@ spec:
       containers:
         - name: ingest
           image: ghcr.io/optikklabs/ingest:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - { name: otlp-grpc, containerPort: 4318 }
             - { name: metrics, containerPort: 18090 }

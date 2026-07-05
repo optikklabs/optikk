@@ -12,10 +12,10 @@ import (
 
 func newDashboardsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "dashboards",
-		Aliases: []string{"dash"},
-		Short:   "Manage dashboards",
-		Long:    "CRUD operations for dashboard pages — list, get, create, update, delete, export, import.",
+		Use:         "dashboards",
+		Aliases:     []string{"dash"},
+		Short:       "Manage dashboards",
+		Long:        "CRUD operations for dashboard pages — list, get, create, update, delete, export, import.",
 		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(

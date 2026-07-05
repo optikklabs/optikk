@@ -3,6 +3,7 @@ package queryclient
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/optikklabs/optikk/internal/dsl"
@@ -76,4 +77,44 @@ func (c *Client) TraceTrend(ctx context.Context, req TracesTrendRequest) (any, e
 		return nil, err
 	}
 	return resp, nil
+}
+
+// traceSubresource GETs an analytical sub-resource of a trace as raw JSON.
+func (c *Client) traceSubresource(ctx context.Context, traceID, sub string) (any, error) {
+	var resp any
+	if err := c.do(ctx, "GET", fmt.Sprintf("/v1/traces/%s/%s", traceID, sub), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// CriticalPath returns the critical path through a trace.
+func (c *Client) CriticalPath(ctx context.Context, traceID string) (any, error) {
+	return c.traceSubresource(ctx, traceID, "critical-path")
+}
+
+// ErrorPath returns the error propagation path through a trace.
+func (c *Client) ErrorPath(ctx context.Context, traceID string) (any, error) {
+	return c.traceSubresource(ctx, traceID, "error-path")
+}
+
+// ServiceMap returns the per-trace service dependency map.
+func (c *Client) ServiceMap(ctx context.Context, traceID string) (any, error) {
+	return c.traceSubresource(ctx, traceID, "service-map")
+}
+
+// RelatedTraces returns traces sharing the given service+operation over a range.
+func (c *Client) RelatedTraces(ctx context.Context, traceID, service, operation string, startMs, endMs int64) (any, error) {
+	path := fmt.Sprintf("/v1/traces/%s/related?startTime=%d&endTime=%d&service=%s&operation=%s",
+		traceID, startMs, endMs, url.QueryEscape(service), url.QueryEscape(operation))
+	var resp any
+	if err := c.do(ctx, "GET", path, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// TraceErrors returns the errors within a trace.
+func (c *Client) TraceErrors(ctx context.Context, traceID string) (any, error) {
+	return c.traceSubresource(ctx, traceID, "errors")
 }

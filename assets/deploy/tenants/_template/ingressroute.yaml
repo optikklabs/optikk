@@ -8,10 +8,10 @@ metadata:
 spec:
   entryPoints: [otlp-http]
   routes:
-    - match: Header(`x-api-key`, `REPLACE_WITH_<TEAM_SLUG_KEY>`)
+    - match: Header(`x-api-key`, `REPLACE_WITH_<TENANT_KEY>`)
       kind: Rule
       services:
-        - name: otel-collector-<slug>
+        - name: otel-collector-<id>
           port: 4318
       middlewares:
         - name: ratelimit
@@ -23,10 +23,10 @@ metadata:
 spec:
   entryPoints: [otlp-grpc]
   routes:
-    - match: Header(`x-api-key`, `REPLACE_WITH_<TEAM_SLUG_KEY>`)
+    - match: Header(`x-api-key`, `REPLACE_WITH_<TENANT_KEY>`)
       kind: Rule
       services:
-        - name: otel-collector-<slug>
+        - name: otel-collector-<id>
           port: 4317
           scheme: h2c
       middlewares:

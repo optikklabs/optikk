@@ -29,50 +29,25 @@ type machine struct {
 }
 
 // PrecheckPodman verifies the default machine is running, rootful, and meets
-// the sizing floor. When manage is true it runs the fixes; otherwise it returns
-// an actionable error naming the exact command to run.
-func PrecheckPodman(manage bool) error {
+// the sizing floor, returning an actionable error naming the exact command to
+// run. It only inspects; the operator applies the fix.
+func PrecheckPodman() error {
 	m, err := inspect()
 	if err != nil {
 		return err
 	}
 
 	if problem := sizingProblem(m); problem != "" {
-		if !manage {
-			return fmt.Errorf("podman machine %s: %s\n  fix: podman machine stop && podman machine set --cpus %d --memory %d --disk-size %d && podman machine start",
-				m.Name, problem, max(m.Resources.CPUs, minCPUs), max(m.Resources.Memory, minMemoryMB), max(m.Resources.DiskSize, minDiskGB))
-		}
-		if err := run("podman", "machine", "stop"); err != nil {
-			return err
-		}
-		if err := run("podman", "machine", "set",
-			"--cpus", itoa(max(m.Resources.CPUs, minCPUs)),
-			"--memory", itoa(max(m.Resources.Memory, minMemoryMB)),
-			"--disk-size", itoa(max(m.Resources.DiskSize, minDiskGB)),
-			"--rootful"); err != nil {
-			return err
-		}
-		return run("podman", "machine", "start")
+		return fmt.Errorf("podman machine %s: %s\n  fix: podman machine stop && podman machine set --cpus %d --memory %d --disk-size %d && podman machine start",
+			m.Name, problem, max(m.Resources.CPUs, minCPUs), max(m.Resources.Memory, minMemoryMB), max(m.Resources.DiskSize, minDiskGB))
 	}
 
 	if !m.Rootful {
-		if !manage {
-			return fmt.Errorf("podman machine %s is not rootful (kind needs rootful)\n  fix: podman machine stop && podman machine set --rootful && podman machine start", m.Name)
-		}
-		if err := run("podman", "machine", "stop"); err != nil {
-			return err
-		}
-		if err := run("podman", "machine", "set", "--rootful"); err != nil {
-			return err
-		}
-		return run("podman", "machine", "start")
+		return fmt.Errorf("podman machine %s is not rootful (kind needs rootful)\n  fix: podman machine stop && podman machine set --rootful && podman machine start", m.Name)
 	}
 
 	if !strings.EqualFold(m.State, "running") {
-		if !manage {
-			return fmt.Errorf("podman machine %s is %s\n  fix: podman machine start", m.Name, m.State)
-		}
-		return run("podman", "machine", "start")
+		return fmt.Errorf("podman machine %s is %s\n  fix: podman machine start", m.Name, m.State)
 	}
 	return nil
 }

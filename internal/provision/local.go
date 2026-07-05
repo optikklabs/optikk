@@ -3,8 +3,6 @@ package provision
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/optikklabs/optikk/internal/hostexec"
@@ -33,7 +31,7 @@ func (l *Local) Up(ctx context.Context) error {
 	}
 
 	step(w, "prechecking podman machine")
-	if err := hostexec.PrecheckPodman(l.opts.ManagePodman); err != nil {
+	if err := hostexec.PrecheckPodman(); err != nil {
 		return err
 	}
 
@@ -44,6 +42,10 @@ func (l *Local) Up(ctx context.Context) error {
 	}
 	if exists {
 		step(w, "kind cluster %q already exists, reusing", ClusterName)
+		_ = hostexec.StartContainer(kc.NodeContainer())
+		if err := kc.ExportKubeconfig(); err != nil {
+			return err
+		}
 	} else {
 		step(w, "creating kind cluster %q", ClusterName)
 		if err := kc.Create(filepath.Join(l.opts.DeployDir, "kind", "kind-config.yaml"), l.opts.Timeout); err != nil {
@@ -54,13 +56,6 @@ func (l *Local) Up(ctx context.Context) error {
 	step(w, "lifting pids-limit on %s", kc.NodeContainer())
 	if err := hostexec.SetPidsLimit(kc.NodeContainer()); err != nil {
 		return err
-	}
-
-	if l.opts.LoadLocalImages {
-		step(w, "loading local app images into kind")
-		if err := l.loadLocalImages(ctx, kc); err != nil {
-			return err
-		}
 	}
 
 	k := kubectl.Kube{Context: kc.Context()}
@@ -76,7 +71,7 @@ func (l *Local) Up(ctx context.Context) error {
 	}
 
 	step(w, "waiting for rollouts (timeout %s)", l.opts.Timeout)
-	if err := k8sapply.WaitRollouts(ctx, k, Namespace, l.opts.Timeout); err != nil {
+	if err := k8sapply.WaitRollouts(ctx, w, k, Namespace, l.opts.Timeout); err != nil {
 		return fmt.Errorf("rollout wait: %w (%s)", err, k8sapply.PendingSummary(ctx, k, Namespace))
 	}
 
@@ -101,34 +96,4 @@ func (l *Local) Down(ctx context.Context) error {
 	step(w, "deleting the optikk stack (keeping cluster)")
 	k := kubectl.Kube{Context: kc.Context()}
 	return k8sapply.DeleteKustomize(ctx, k, filepath.Join(l.opts.DeployDir, "overlays", "local"))
-}
-
-// localImages are the private app images kind must have loaded when the ghcr
-// packages aren't public. clickhouse/mariadb/traefik/otel pull from public
-// registries and are not listed here.
-var localImages = []string{
-	"ghcr.io/optikklabs/ingest:latest",
-	"ghcr.io/optikklabs/query:latest",
-	"ghcr.io/optikklabs/web:latest",
-	"ghcr.io/ramantayal12/mq:latest",
-}
-
-// loadLocalImages saves the locally-present app images (podman, host-level)
-// then imports the archive into the kind node.
-func (l *Local) loadLocalImages(ctx context.Context, kc *localcluster.Cluster) error {
-	archive := filepath.Join(os.TempDir(), "optikk-images.tar")
-	defer os.Remove(archive)
-
-	saveArgs := append([]string{"save", "-m", "-o", archive}, localImages...)
-	if err := sh(ctx, "podman", saveArgs...); err != nil {
-		return fmt.Errorf("podman save app images: %w", err)
-	}
-	return kc.LoadImageArchive(archive)
-}
-
-func sh(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }

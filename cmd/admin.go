@@ -48,5 +48,3 @@ func newAdminSetupCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&password, "password", defaultAdminPassword, "super-admin password")
 	return cmd
 }
-
-

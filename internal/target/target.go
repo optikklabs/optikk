@@ -29,8 +29,8 @@ func Resolve(cfg config.Config) (*Conn, error) {
 		if _, err := k.Run(context.Background(), "get", "--raw", "/readyz", "--request-timeout=10s"); err != nil {
 			return nil, fmt.Errorf("local cluster not reachable (is it up?): %w", err)
 		}
-		// kind maps host 8080 -> Traefik web, 4318 -> OTLP/HTTP.
-		return &Conn{Kube: k, APIBase: "http://localhost:8080", OTLPBase: "http://localhost:4318"}, nil
+		// kind maps host 18040 -> Traefik web, 4318 -> OTLP/HTTP.
+		return &Conn{Kube: k, APIBase: "http://localhost:18040", OTLPBase: "http://localhost:4318"}, nil
 	}
 	return nil, fmt.Errorf("unknown target %q", cfg.Target)
 }

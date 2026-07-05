@@ -1,5 +1,5 @@
 // Package tenant onboards/offboards per-tenant otel-collectors from the
-// deploy/tenants/_template kustomization.
+// deploy/tenants/_template kustomization, keyed by tenant id.
 package tenant
 
 import (
@@ -17,11 +17,11 @@ import (
 // templateFiles are the per-tenant kustomization files to materialize.
 var templateFiles = []string{"kustomization.yaml", "ingressroute.yaml"}
 
-// Onboard materializes deploy/tenants/<slug> from the template with the slug
+// Onboard materializes deploy/tenants/<id> from the template with the tenant id
 // and key substituted, then renders and applies it.
-func Onboard(ctx context.Context, k kubectl.Kube, deployDir, slug, key string, out io.Writer) error {
-	dst := tenantDir(deployDir, slug)
-	if err := materialize(deployDir, dst, slug, key); err != nil {
+func Onboard(ctx context.Context, k kubectl.Kube, deployDir, id, key string, out io.Writer) error {
+	dst := tenantDir(deployDir, id)
+	if err := materialize(deployDir, dst, id, key); err != nil {
 		return err
 	}
 	log(out, "materialized %s", dst)
@@ -29,15 +29,15 @@ func Onboard(ctx context.Context, k kubectl.Kube, deployDir, slug, key string, o
 	if err := k8sapply.ApplyKustomize(ctx, k, dst); err != nil {
 		return err
 	}
-	log(out, "applied tenant %q (collector otel-collector-%s)", slug, slug)
+	log(out, "applied tenant %q (collector otel-collector-%s)", id, id)
 	return nil
 }
 
 // Offboard renders the tenant's resources, deletes them, and removes the dir.
-func Offboard(ctx context.Context, k kubectl.Kube, deployDir, slug string, out io.Writer) error {
-	dst := tenantDir(deployDir, slug)
+func Offboard(ctx context.Context, k kubectl.Kube, deployDir, id string, out io.Writer) error {
+	dst := tenantDir(deployDir, id)
 	if _, err := os.Stat(dst); err != nil {
-		return fmt.Errorf("tenant %q not found at %s", slug, dst)
+		return fmt.Errorf("tenant %q not found at %s", id, dst)
 	}
 	if err := k8sapply.DeleteKustomize(ctx, k, dst); err != nil {
 		return err
@@ -45,21 +45,21 @@ func Offboard(ctx context.Context, k kubectl.Kube, deployDir, slug string, out i
 	if err := os.RemoveAll(dst); err != nil {
 		return err
 	}
-	log(out, "offboarded tenant %q", slug)
+	log(out, "offboarded tenant %q", id)
 	return nil
 }
 
-func tenantDir(deployDir, slug string) string {
-	return filepath.Join(deployDir, "tenants", slug)
+func tenantDir(deployDir, id string) string {
+	return filepath.Join(deployDir, "tenants", id)
 }
 
 // materialize copies the template files into dst, substituting placeholders.
-func materialize(deployDir, dst, slug, key string) error {
+func materialize(deployDir, dst, id, key string) error {
 	src := filepath.Join(deployDir, "tenants", "_template")
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return err
 	}
-	replacer := strings.NewReplacer("REPLACE_WITH_<TEAM_SLUG_KEY>", key, "<slug>", slug)
+	replacer := strings.NewReplacer("REPLACE_WITH_<TENANT_KEY>", key, "<id>", id)
 	for _, name := range templateFiles {
 		content, err := os.ReadFile(filepath.Join(src, name))
 		if err != nil {

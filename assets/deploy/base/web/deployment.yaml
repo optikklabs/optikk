@@ -15,7 +15,7 @@ spec:
       containers:
         - name: web
           image: ghcr.io/optikklabs/web:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           # Bypass the image entrypoint (it envsubst+mv's default.conf, which
           # fails over our read-only mounted config) and run nginx directly.
           command: ["nginx", "-g", "daemon off;"]
