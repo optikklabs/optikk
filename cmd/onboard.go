@@ -13,24 +13,20 @@ import (
 
 func newOnboardCmd(app *App) *cobra.Command {
 	var email, password, name, org string
-	var managed, local bool
 	cmd := &cobra.Command{
 		Use:   "onboard",
 		Short: "Sign up and get your API key + OTLP endpoint",
-		Long: "Signs you up (or reuses your cached session) against the local cluster\n" +
-			"(--local, default) or the hosted Optikk (--managed), then prints your API\n" +
-			"key and the OTEL_EXPORTER_OTLP_* snippet to point your SDK at.\n\n" +
-			"Bring the local stack up with `optikk init`; provision a per-tenant\n" +
-			"collector with `optikk tenant onboard`.",
-		Example:     "  optikk onboard\n  optikk onboard --managed\n  optikk onboard --org \"Acme Platform\"",
+		Long: "Signs you up (or reuses your cached session), then prints your API key\n" +
+			"and the OTEL_EXPORTER_OTLP_* snippet to point your SDK at.\n\n" +
+			"Runs against the local cluster by default; use `optikk cloud onboard`\n" +
+			"for the hosted Optikk. Bring the local stack up with `optikk init`;\n" +
+			"provision a per-tenant collector with `optikk tenant onboard`.",
+		Example:     "  optikk onboard\n  optikk cloud onboard\n  optikk onboard --org \"Acme Platform\"",
 		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			out := cmd.OutOrStdout()
 			apiBase := conn.Resolve(app.Cfg.ApiURL)
-			if managed && app.Cfg.ApiURL == "" {
-				apiBase = conn.ManagedAPIURL
-			}
 			client := apiclient.New(apiBase)
 
 			if cachedBase, tok, err := apiclient.LoadToken(); err == nil && cachedBase == apiBase {
@@ -62,9 +58,6 @@ func newOnboardCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&password, "password", "", "account password (prompted if omitted)")
 	cmd.Flags().StringVar(&name, "name", "", "your full name (prompted if omitted)")
 	cmd.Flags().StringVar(&org, "org", "", "organization name, becomes your tenant (prompted if omitted)")
-	cmd.Flags().BoolVar(&managed, "managed", false, "sign up against the hosted Optikk ("+conn.ManagedAPIURL+")")
-	cmd.Flags().BoolVar(&local, "local", false, "sign up against the local cluster ("+conn.DefaultAPIURL+", default)")
-	cmd.MarkFlagsMutuallyExclusive("managed", "local")
 	return cmd
 }
 

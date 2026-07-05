@@ -13,7 +13,7 @@ import (
 )
 
 // resolveClient builds a queryclient.Client from app config, resolving the
-// token from OPTIKK_TOKEN env or ~/.optikk/token.json.
+// token from OPTIKK_TOKEN env or ~/.optikk/config.json.
 func resolveClient(app *App) (*queryclient.Client, error) {
 	apiBase := conn.Resolve(app.Cfg.ApiURL)
 	token := app.Cfg.Token

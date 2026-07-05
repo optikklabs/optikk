@@ -65,8 +65,8 @@ func (l *Local) Up(ctx context.Context) error {
 		return err
 	}
 
-	step(w, "applying overlays/local")
-	if err := k8sapply.ApplyKustomize(ctx, k, filepath.Join(l.opts.DeployDir, "overlays", "local")); err != nil {
+	step(w, "applying the optikk stack")
+	if err := k8sapply.ApplyKustomize(ctx, k, l.opts.DeployDir); err != nil {
 		return err
 	}
 
@@ -75,7 +75,7 @@ func (l *Local) Up(ctx context.Context) error {
 		return fmt.Errorf("rollout wait: %w (%s)", err, k8sapply.PendingSummary(ctx, k, Namespace))
 	}
 
-	step(w, "local stack ready — query API at http://localhost:8080")
+	step(w, "local stack ready — query API at http://localhost:18040")
 	return nil
 }
 
@@ -95,5 +95,5 @@ func (l *Local) Down(ctx context.Context) error {
 
 	step(w, "deleting the optikk stack (keeping cluster)")
 	k := kubectl.Kube{Context: kc.Context()}
-	return k8sapply.DeleteKustomize(ctx, k, filepath.Join(l.opts.DeployDir, "overlays", "local"))
+	return k8sapply.DeleteKustomize(ctx, k, l.opts.DeployDir)
 }

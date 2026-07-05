@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -34,7 +33,7 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Authenticate and cache a session JWT",
-		Long:  "Logs in via POST /api/v1/auth/login, caches the JWT at ~/.optikk/token.json.",
+		Long:  "Logs in via POST /api/v1/auth/login, caches the JWT at ~/.optikk/config.json.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			apiBase := conn.Resolve(app.Cfg.ApiURL)
 			client := apiclient.New(apiBase)
@@ -47,7 +46,7 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ Authenticated as %s\n", email)
 			fmt.Fprintf(cmd.OutOrStdout(), "  API: %s\n", apiBase)
-			fmt.Fprintf(cmd.OutOrStdout(), "  Token cached at ~/.optikk/token.json\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "  Token cached at ~/.optikk/config.json\n")
 			return nil
 		},
 	}
@@ -75,7 +74,7 @@ func newAuthStatusCmd(app *App) *cobra.Command {
 				}
 				token = tok
 				apiBase = base
-				source = "~/.optikk/token.json"
+				source = "~/.optikk/config.json"
 			}
 
 			// Decode JWT payload (no verification — just display).
@@ -110,12 +109,7 @@ func newAuthLogoutCmd() *cobra.Command {
 		Use:   "logout",
 		Short: "Clear cached authentication",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return err
-			}
-			path := home + "/.optikk/token.json"
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			if err := apiclient.ClearToken(); err != nil {
 				return err
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "✓ Logged out (token cleared)")

@@ -28,7 +28,8 @@ spec:
           image: ghcr.io/optikklabs/ingest:latest
           imagePullPolicy: Always
           ports:
-            - { name: otlp-grpc, containerPort: 4318 }
+            - { name: otlp-grpc, containerPort: 18317 }
+            - { name: otlp-http, containerPort: 18318 }
             - { name: metrics, containerPort: 18090 }
           env:
             - name: OPTIKK_MYSQL_HOST
@@ -50,7 +51,9 @@ spec:
             - name: OPTIKK_SERVER_PORT
               value: "18090"
             - name: OPTIKK_OTLP_GRPC_PORT
-              value: "4318"
+              value: "18317"
+            - name: OPTIKK_OTLP_HTTP_PORT
+              value: "18318"
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { memory: 512Mi }

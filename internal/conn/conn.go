@@ -7,7 +7,7 @@ import "strings"
 // DefaultAPIURL is the localhost endpoint exposed by kind's Traefik ingress.
 const DefaultAPIURL = "http://localhost:18040"
 
-// ManagedAPIURL is the hosted Optikk API (`optikk onboard --managed`).
+// ManagedAPIURL is the team-hosted Optikk API (the `optikk cloud` subtree).
 const ManagedAPIURL = "https://api.optikk.in"
 
 // Resolve returns the API base URL in priority order:

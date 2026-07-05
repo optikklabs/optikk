@@ -1,8 +1,0 @@
-# Prod: expose Traefik via LoadBalancer. On single-node k3s, the built-in
-# servicelb (klipper) binds these ports on the node's public IP.
-apiVersion: v1
-kind: Service
-metadata:
-  name: traefik
-spec:
-  type: LoadBalancer

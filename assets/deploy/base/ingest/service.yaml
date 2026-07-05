@@ -9,8 +9,11 @@ spec:
     app: ingest
   ports:
     - name: otlp-grpc
-      port: 4318
-      targetPort: 4318
+      port: 18317
+      targetPort: 18317
+    - name: otlp-http
+      port: 18318
+      targetPort: 18318
     - name: metrics
       port: 18090
       targetPort: 18090

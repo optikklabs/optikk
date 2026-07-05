@@ -1,6 +1,6 @@
 # Single-node kind cluster. Host ports are non-privileged so no root bind is needed:
-#   query API  -> http://localhost:8080
-#   OTLP gRPC  -> localhost:4317   OTLP HTTP -> localhost:4318
+#   query API / UI -> http://localhost:18040   (TLS: https://localhost:19443)
+#   OTLP gRPC      -> localhost:4317   OTLP HTTP -> localhost:4318
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:

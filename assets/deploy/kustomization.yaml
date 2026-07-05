@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Root of the local kind stack: every platform component in one namespace.
+# `optikk up` applies this directory (kubectl apply -k .). Tenants are rows in
+# MySQL created at signup, not manifests — ingest resolves them per-request from
+# the x-api-key header, so there is nothing per-tenant to add here.
+namespace: optikk
+
+resources:
+  - base/namespace.yaml
+  # CRDs first so IngressRoute/Middleware resolve.
+  - https://raw.githubusercontent.com/traefik/traefik/v3.3/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml
+  # ClickHouse
+  - base/clickhouse/configmap.yaml
+  - base/clickhouse/secret.yaml
+  - base/clickhouse/service.yaml
+  - base/clickhouse/statefulset.yaml
+  # MariaDB
+  - base/mariadb/secret.yaml
+  - base/mariadb/service.yaml
+  - base/mariadb/statefulset.yaml
+  # mq
+  - base/mq/service.yaml
+  - base/mq/statefulset.yaml
+  # ingest
+  - base/ingest/deployment.yaml
+  - base/ingest/service.yaml
+  - base/ingest/hpa.yaml
+  # query
+  - base/query/secret.yaml
+  - base/query/deployment.yaml
+  - base/query/service.yaml
+  - base/query/hpa.yaml
+  # web (UI)
+  - base/web/configmap.yaml
+  - base/web/deployment.yaml
+  - base/web/service.yaml
+  # traefik
+  - base/traefik/rbac.yaml
+  - base/traefik/ingressclass.yaml
+  - base/traefik/deployment.yaml
+  - base/traefik/service.yaml
+  - base/traefik/ingress.yaml
+  - base/traefik/hpa.yaml

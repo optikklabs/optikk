@@ -1,3 +1,0 @@
-# Real prod secrets never get committed; only the .env.example templates do.
-secrets/*.env
-!secrets/*.env.example

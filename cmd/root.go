@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/optikklabs/optikk/internal/config"
+	"github.com/optikklabs/optikk/internal/conn"
 	"github.com/optikklabs/optikk/internal/deploypath"
 	"github.com/spf13/cobra"
 )
@@ -24,6 +25,9 @@ const (
 	// annotationSkipDeploy marks commands that need config but not deploy/.
 	// Auth and data commands use this — they only need API URL + token.
 	annotationSkipDeploy = "optikk/skip-deploy"
+	// annotationManaged marks the cloud subtree: its commands default to the
+	// hosted API (conn.ManagedAPIURL) instead of the local cluster.
+	annotationManaged = "optikk/managed"
 )
 
 // persistent flag values, resolved into App.Cfg in PersistentPreRunE.
@@ -80,7 +84,7 @@ func NewRootCmd() *cobra.Command {
 	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output")
 
 	// Data-CLI persistent flags (Datadog Pup-style).
-	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL (OPTIKK_API_URL, default http://localhost:8080)")
+	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL (OPTIKK_API_URL, default http://localhost:18040)")
 	pf.Int64Var(&f.tenantID, "tenant-id", 0, "tenant context for X-Tenant-Id header (OPTIKK_TENANT_ID)")
 	pf.StringVarP(&f.output, "output", "o", "", "output format: table|json|yaml (auto-detected from TTY)")
 	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, skip confirmations (FORCE_AGENT_MODE)")
@@ -119,6 +123,9 @@ func NewRootCmd() *cobra.Command {
 		newAgentCmd(),
 	)
 
+	// Managed: the same account + data commands against the hosted Optikk.
+	root.AddCommand(newCloudCmd(app))
+
 	return root
 }
 
@@ -134,6 +141,16 @@ func skipsConfig(cmd *cobra.Command) bool {
 func skipsDeploy(cmd *cobra.Command) bool {
 	for c := cmd; c != nil; c = c.Parent() {
 		if c.Annotations[annotationSkipDeploy] == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+// isManaged reports whether cmd lives under the `cloud` subtree.
+func isManaged(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Annotations[annotationManaged] == "true" {
 			return true
 		}
 	}
@@ -167,6 +184,12 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 		cfg.Output = f.output
 	}
 	a.AgentMode = f.agentMode
+
+	// Cloud subcommands default to the hosted API when no explicit base was
+	// given (--api-url / OPTIKK_API_URL / context). An explicit base still wins.
+	if cfg.ApiURL == "" && isManaged(cmd) {
+		cfg.ApiURL = conn.ManagedAPIURL
+	}
 
 	// Data commands skip deploy path + target validation.
 	if skipsDeploy(cmd) {

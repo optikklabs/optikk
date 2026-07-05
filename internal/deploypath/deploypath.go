@@ -9,8 +9,9 @@ import (
 	"github.com/optikklabs/optikk/assets"
 )
 
-// marker is a path that must exist inside a valid deploy/ directory.
-var marker = filepath.Join("overlays", "local", "kustomization.yaml")
+// marker is a path that must exist inside a valid deploy/ directory: the root
+// kustomization the CLI applies.
+const marker = "kustomization.yaml"
 
 // Resolve returns the absolute deploy/ path. An explicit override wins (dev
 // against a working tree); otherwise the embedded tree is materialized to disk.

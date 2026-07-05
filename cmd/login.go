@@ -43,7 +43,7 @@ func newLoginCmd(app *App) *cobra.Command {
 			if err := apiclient.SaveToken(apiBase, token); err != nil {
 				return err
 			}
-			fmt.Fprintf(w, "\n✓ Signed in. Token cached at ~/.optikk/token.json\n")
+			fmt.Fprintf(w, "\n✓ Signed in. Token cached at ~/.optikk/config.json\n")
 			return nil
 		},
 	}

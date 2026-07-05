@@ -21,7 +21,7 @@ spec:
         - name: traefik
           image: traefik:v3.3
           args:
-            # Non-privileged entrypoints (Service publishes 80/443/4317/4318).
+            # Non-privileged entrypoints (Service publishes 9080/9443/4317/4318).
             - --entrypoints.traefik.address=:9000
             - --entrypoints.web.address=:8000
             - --entrypoints.websecure.address=:8443

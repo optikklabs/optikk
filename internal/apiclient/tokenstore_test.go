@@ -65,3 +65,56 @@ func TestLoadTokenNoSession(t *testing.T) {
 		t.Error("LoadToken with no config should error")
 	}
 }
+
+func TestClearTokenClearsConfig(t *testing.T) {
+	isolateHome(t)
+
+	if err := SaveToken("http://localhost:18040", "jwt-abc"); err != nil {
+		t.Fatalf("SaveToken: %v", err)
+	}
+	if err := ClearToken(); err != nil {
+		t.Fatalf("ClearToken: %v", err)
+	}
+	if _, _, err := LoadToken(); err == nil {
+		t.Error("LoadToken should error after ClearToken")
+	}
+
+	// The context is preserved (only the token is cleared) for re-login.
+	ctx, err := CurrentContext()
+	if err != nil {
+		t.Fatalf("CurrentContext: %v", err)
+	}
+	if ctx.APIURL != "http://localhost:18040" || ctx.Token != "" {
+		t.Errorf("expected preserved context with empty token, got %+v", ctx)
+	}
+}
+
+func TestClearTokenRemovesLegacy(t *testing.T) {
+	isolateHome(t)
+
+	dir, _ := optikkDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	legacy := filepath.Join(dir, "token.json")
+	if err := os.WriteFile(legacy, []byte(`{"apiBase":"x","token":"old"}`), 0o600); err != nil {
+		t.Fatalf("write legacy: %v", err)
+	}
+
+	if err := ClearToken(); err != nil {
+		t.Fatalf("ClearToken: %v", err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Error("legacy token.json should be removed")
+	}
+	if _, _, err := LoadToken(); err == nil {
+		t.Error("LoadToken should error after clearing legacy token")
+	}
+}
+
+func TestClearTokenNoSession(t *testing.T) {
+	isolateHome(t)
+	if err := ClearToken(); err != nil {
+		t.Errorf("ClearToken with no session should be a no-op, got %v", err)
+	}
+}

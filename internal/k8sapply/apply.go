@@ -1,4 +1,4 @@
-// Package k8sapply applies kustomize overlays and waits on rollouts via kubectl.
+// Package k8sapply applies kustomize directories and waits on rollouts via kubectl.
 package k8sapply
 
 import (

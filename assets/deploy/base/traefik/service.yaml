@@ -1,5 +1,5 @@
-# The only public Service. Publishes standard ports; targets the non-privileged
-# container entrypoints. Type is patched per overlay (NodePort local / LoadBalancer cloud).
+# The only public Service. Exposed as NodePort so kind's extraPortMappings reach
+# it (see kind/kind-config.yaml); targets the non-privileged container entrypoints.
 apiVersion: v1
 kind: Service
 metadata:
@@ -7,19 +7,23 @@ metadata:
   labels:
     app: traefik
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: traefik
   ports:
     - name: web
-      port: 80
+      port: 9080
       targetPort: 8000
+      nodePort: 30080
     - name: websecure
-      port: 443
+      port: 9443
       targetPort: 8443
+      nodePort: 30443
     - name: otlp-grpc
       port: 4317
       targetPort: 8317
+      nodePort: 30417
     - name: otlp-http
       port: 4318
       targetPort: 8318
+      nodePort: 30418

@@ -1,5 +1,4 @@
 # ClickHouse server config.d overrides. Mirrors ingest/db/clickhouse/config.d.
-# The gcp overlay appends a storage_gcs.xml entry to enable GCS tiered storage.
 apiVersion: v1
 kind: ConfigMap
 metadata:

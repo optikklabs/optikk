@@ -142,6 +142,32 @@ func LoadToken() (apiBase, token string, err error) {
 	return entry.APIURL, entry.Token, nil
 }
 
+// ClearToken removes the current context's cached session and any legacy
+// token.json. It is a no-op when nothing is cached.
+func ClearToken() error {
+	// Best-effort removal of the pre-contexts token file.
+	path, err := legacyTokenPath()
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	name := currentName(cfg)
+	entry, ok := cfg.Contexts[name]
+	if !ok || entry.Token == "" {
+		return nil
+	}
+	entry.Token = ""
+	cfg.Contexts[name] = entry
+	return saveConfig(cfg)
+}
+
 // CurrentContext returns the active context (tenant id included), for callers
 // that need the default tenant beyond just the token.
 func CurrentContext() (Context, error) {
