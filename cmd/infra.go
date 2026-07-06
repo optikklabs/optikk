@@ -14,7 +14,6 @@ func newInfraCmd(app *App) *cobra.Command {
 		Use:         "infra",
 		Short:       "Inspect host, node, and pod infrastructure",
 		Long:        "Query the infrastructure API — hosts, Kubernetes nodes, pods, CPU, and memory.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newInfraHostsCmd(app),
@@ -31,7 +30,6 @@ func newInfraHostsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "hosts",
 		Short:       "List host-level saturation and RED metrics",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk infra hosts --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -70,7 +68,6 @@ func newInfraNodesCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "nodes",
 		Short:       "List Kubernetes node-level aggregates",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk infra nodes --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -108,7 +105,6 @@ func newInfraPodsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "pods",
 		Short:       "List pod-level RED aggregates",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk infra pods --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -154,7 +150,6 @@ func newInstanceMetricCmd(app *App, use, short string, fn func(*queryclient.Clie
 	cmd := &cobra.Command{
 		Use:         use,
 		Short:       short,
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {

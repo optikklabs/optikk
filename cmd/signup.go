@@ -21,7 +21,6 @@ func newSignupCmd(app *App) *cobra.Command {
 		Long: "Self-serve signup via POST /api/v1/auth/signup: creates your account and tenant,\n" +
 			"prints the tenant's ingest API key, and caches the session JWT at ~/.optikk/config.json.",
 		Example:     "  optikk signup\n  optikk signup --email founder@startup.dev --org startup --name Founder",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			apiBase := conn.Resolve(app.Cfg.ApiURL)
 			client := apiclient.New(apiBase)

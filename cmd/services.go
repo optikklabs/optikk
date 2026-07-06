@@ -14,7 +14,6 @@ func newServicesCmd(app *App) *cobra.Command {
 		Use:         "services",
 		Short:       "Inspect the service fleet and dependency topology",
 		Long:        "Query the services API — RED metrics, dependency topology, and error groups.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newServicesListCmd(app),
@@ -31,7 +30,6 @@ func newServicesListCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "list",
 		Short:       "List RED metrics for every service in the fleet",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk services list --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)
@@ -74,7 +72,6 @@ func newServicesTopologyCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "topology",
 		Short:       "Show the service dependency graph",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk services topology --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)
@@ -104,7 +101,6 @@ func newServicesErrorsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "errors",
 		Short:       "List aggregated error groups",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk services errors --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)
@@ -153,7 +149,6 @@ func newServicesSummaryCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "summary",
 		Short:       "Show the RED summary for one service",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk services summary --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if service == "" {
@@ -185,7 +180,6 @@ func newServicesTopEndpointsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "top-endpoints",
 		Short:       "Show the busiest endpoints across the fleet or one service",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk services top-endpoints --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)

@@ -18,7 +18,6 @@ func newAuthCmd(app *App) *cobra.Command {
 		Short:       "Authenticate with the Optikk API",
 		Long:        "Manage authentication sessions for data commands (traces, logs, metrics, dashboards, monitors).",
 		Example:     "  optikk auth login\n  optikk auth login --email user@example.com --password '...'\n  optikk auth status\n  optikk auth logout",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newAuthLoginCmd(app),
@@ -50,8 +49,8 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&email, "email", defaultAdminEmail, "account email")
-	cmd.Flags().StringVar(&password, "password", defaultAdminPassword, "account password")
+	cmd.Flags().StringVar(&email, "email", "", "account email")
+	cmd.Flags().StringVar(&password, "password", "", "account password")
 	return cmd
 }
 

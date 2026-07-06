@@ -16,7 +16,6 @@ func newTracesCmd(app *App) *cobra.Command {
 		Use:         "traces",
 		Short:       "Search and inspect distributed traces",
 		Long:        "Query the traces API — search by DSL, get trace details, view trends.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newTracesSearchCmd(app),
@@ -38,7 +37,6 @@ func newTraceAnalysisCmd(app *App, use, short string, fn func(*queryclient.Clien
 		Use:         use + " <traceId>",
 		Short:       short,
 		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := resolveClient(app)
 			if err != nil {
@@ -62,7 +60,6 @@ func newTracesRelatedCmd(app *App) *cobra.Command {
 		Use:         "related <traceId>",
 		Short:       "Show traces sharing a service+operation with a trace",
 		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk traces related <id> --service api --operation GET /users --from 1h`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if service == "" || operation == "" {
@@ -159,7 +156,6 @@ func newTracesGetCmd(app *App) *cobra.Command {
 		Use:         "get <traceId>",
 		Short:       "Get full trace details",
 		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := resolveClient(app)
 			if err != nil {

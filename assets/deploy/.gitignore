@@ -1,6 +1,0 @@
-# Never commit real secrets / rendered manifests
-*.secret.yaml
-*.secret.env
-secrets/
-rendered-*.yaml
-.DS_Store

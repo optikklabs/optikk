@@ -1,10 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"time"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
 	"github.com/optikklabs/optikk/internal/conn"
@@ -17,12 +14,8 @@ func newOnboardCmd(app *App) *cobra.Command {
 		Use:   "onboard",
 		Short: "Sign up and get your API key + OTLP endpoint",
 		Long: "Signs you up (or reuses your cached session), then prints your API key\n" +
-			"and the OTEL_EXPORTER_OTLP_* snippet to point your SDK at.\n\n" +
-			"Runs against the local cluster by default; use `optikk cloud onboard`\n" +
-			"for the hosted Optikk. Bring the local stack up with `optikk init`;\n" +
-			"provision a per-tenant collector with `optikk tenant onboard`.",
-		Example:     "  optikk onboard\n  optikk cloud onboard\n  optikk onboard --org \"Acme Platform\"",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
+			"and the OTEL_EXPORTER_OTLP_* snippet to point your SDK at.",
+		Example: "  optikk onboard\n  optikk onboard --org \"Acme Platform\"",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			out := cmd.OutOrStdout()
@@ -59,36 +52,4 @@ func newOnboardCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "your full name (prompted if omitted)")
 	cmd.Flags().StringVar(&org, "org", "", "organization name, becomes your tenant (prompted if omitted)")
 	return cmd
-}
-
-// waitStatus polls the onboarding status every 3s until done(st) or timeout.
-func waitStatus(ctx context.Context, out io.Writer, client *apiclient.Client, timeout time.Duration,
-	done func(apiclient.OnboardingStatus) bool) (apiclient.OnboardingStatus, error) {
-	return pollUntil(ctx, out, timeout, 3*time.Second, client.GetOnboardingStatus, done)
-}
-
-// pollUntil calls fetch every interval, printing a dot per attempt, until
-// done(result), fetch error, timeout, or context cancellation.
-func pollUntil(ctx context.Context, out io.Writer, timeout, interval time.Duration,
-	fetch func(context.Context) (apiclient.OnboardingStatus, error),
-	done func(apiclient.OnboardingStatus) bool) (apiclient.OnboardingStatus, error) {
-	deadline := time.Now().Add(timeout)
-	for {
-		st, err := fetch(ctx)
-		if err != nil {
-			return st, err
-		}
-		if done(st) {
-			return st, nil
-		}
-		if time.Now().After(deadline) {
-			return st, fmt.Errorf("timed out after %s", timeout)
-		}
-		fmt.Fprint(out, ".")
-		select {
-		case <-ctx.Done():
-			return st, ctx.Err()
-		case <-time.After(interval):
-		}
-	}
 }

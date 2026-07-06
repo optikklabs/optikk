@@ -34,7 +34,6 @@ func newAgentCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "agent",
 		Short:       "AI agent integrations",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(newAgentSchemaCmd())
 	return cmd

@@ -25,19 +25,17 @@ archives:
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
-      - LICENSE
       - NOTICE
       - README.md
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
 
-brews:
+homebrew_casks:
   - name: optikk
     repository:
       owner: optikklabs
       name: homebrew-tap
-    directory: Formula
     homepage: "https://github.com/optikklabs/optikk"
     description: "Provision and operate the Optikk observability stack locally"
     license: "Apache-2.0"

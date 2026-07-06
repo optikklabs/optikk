@@ -14,7 +14,6 @@ func newMetricsCmd(app *App) *cobra.Command {
 		Use:         "metrics",
 		Short:       "List, query, and inspect metrics",
 		Long:        "Query the metrics API — list names, run timeseries queries, list tags.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newMetricsListCmd(app),

@@ -2,7 +2,6 @@ package apiclient
 
 import (
 	"context"
-	"time"
 )
 
 // Login authenticates and stores the returned JWT on the client.
@@ -49,11 +48,8 @@ func (c *Client) Signup(ctx context.Context, req SignupRequest) (SignupResult, e
 
 // OnboardingStatus is the response of GET /v1/onboarding/status (tenant-scoped).
 type OnboardingStatus struct {
-	ID            int64      `json:"id"`
-	APIKey        string     `json:"api_key"`
-	FirstSpanAt   *time.Time `json:"first_span_at"`
-	FirstLogAt    *time.Time `json:"first_log_at"`
-	FirstMetricAt *time.Time `json:"first_metric_at"`
+	ID     int64  `json:"id"`
+	APIKey string `json:"api_key"`
 }
 
 // GetOnboardingStatus reports collector provisioning + first-data state.

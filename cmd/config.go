@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
@@ -9,18 +10,49 @@ import (
 
 func newConfigCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "config",
-		Aliases:     []string{"cfg"},
-		Short:       "Inspect and switch CLI contexts",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
+		Use:     "config",
+		Aliases: []string{"cfg"},
+		Short:   "Inspect and switch CLI contexts",
 	}
 	cmd.AddCommand(
+		newConfigInitCmd(),
 		newConfigShowCmd(app),
 		newConfigGetContextsCmd(),
 		newConfigSetContextCmd(),
 		newConfigUseContextCmd(),
 	)
 	return cmd
+}
+
+func newConfigInitCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "init",
+		Short: "Initialize a new CLI context interactively",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			in := bufio.NewReader(cmd.InOrStdin())
+			apiURL, err := promptIfEmpty(cmd, in, "API URL [https://api.optikk.in]", "")
+			if err != nil {
+				return err
+			}
+			if apiURL == "" {
+				apiURL = "https://api.optikk.in"
+			}
+			
+			name, err := promptIfEmpty(cmd, in, "Context name [default]", "")
+			if err != nil {
+				return err
+			}
+			if name == "" {
+				name = "default"
+			}
+
+			if err := apiclient.SetContext(name, apiURL, 0); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "✓ Context %q saved. Run `optikk login` to authenticate.\n", name)
+			return nil
+		},
+	}
 }
 
 func newConfigShowCmd(app *App) *cobra.Command {

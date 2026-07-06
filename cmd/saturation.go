@@ -13,7 +13,6 @@ func newSaturationCmd(app *App) *cobra.Command {
 		Use:         "saturation",
 		Short:       "Inspect database and Kafka saturation",
 		Long:        "Query the saturation API — datastore and Kafka throughput, latency, and lag.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newSaturationDBSystemsCmd(app),
@@ -32,7 +31,6 @@ func newSaturationDBSystemsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "db-systems",
 		Short:       "List per-system database saturation summaries",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk saturation db-systems --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -73,7 +71,6 @@ func newSaturationJSONCmd(app *App, use, short string, fn func(*queryclient.Clie
 	cmd := &cobra.Command{
 		Use:         use,
 		Short:       short,
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {

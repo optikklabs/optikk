@@ -2,39 +2,22 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/optikklabs/optikk/internal/config"
-	"github.com/optikklabs/optikk/internal/conn"
-	"github.com/optikklabs/optikk/internal/deploypath"
 	"github.com/spf13/cobra"
 )
 
 // App is the shared context injected into every command. Commands depend on
 // this, not on globals, so new commands and targets slot in without edits.
 type App struct {
-	Cfg       config.Config
-	DeployDir string
+	Cfg config.Config
 
 	// Data-CLI state (populated from persistent flags).
 	AgentMode bool
 }
 
-const (
-	annotationNoConfig = "optikk/no-config"
-	// annotationSkipDeploy marks commands that need config but not deploy/.
-	// Auth and data commands use this — they only need API URL + token.
-	annotationSkipDeploy = "optikk/skip-deploy"
-	// annotationManaged marks the cloud subtree: its commands default to the
-	// hosted API (conn.ManagedAPIURL) instead of the local cluster.
-	annotationManaged = "optikk/managed"
-)
-
 // persistent flag values, resolved into App.Cfg in PersistentPreRunE.
 type rootFlags struct {
 	configFile string
-	target     string
-	deployDir  string
 	verbose    bool
 
 	// Data-CLI flags.
@@ -51,16 +34,9 @@ func NewRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "optikk",
-		Short: "Provision, operate, and query the Optikk observability stack",
-		Long:  "optikk provisions and operates the full Optikk observability stack, and provides Datadog Pup-style data commands for traces, logs, metrics, dashboards, and monitors.",
-		Example: `  # Ops commands
-  optikk doctor
-  optikk up
-  optikk verify --api-key <api-key>
-  optikk status
-  optikk down
-
-  # Data commands (Datadog Pup-style)
+		Short: "Query the Optikk observability stack",
+		Long:  "optikk provides Datadog Pup-style data commands for traces, logs, metrics, dashboards, and monitors.",
+		Example: `  # Data commands (Datadog Pup-style)
   optikk auth login
   optikk traces search --query "service:api" --from 1h
   optikk logs search --query "severity_text:ERROR" --from 15m
@@ -70,17 +46,12 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			if skipsConfig(cmd) {
-				return nil
-			}
 			return app.load(cmd, f)
 		},
 	}
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&f.configFile, "config", "", "config file (default: ./optikk.yaml or ~/.optikk/config)")
-	pf.StringVar(&f.target, "target", "", "deployment target: local (default local)")
-	pf.StringVar(&f.deployDir, "deploy-dir", "", "path to the deploy/ kustomize tree (auto-detected)")
 	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output")
 
 	// Data-CLI persistent flags (Datadog Pup-style).
@@ -89,15 +60,7 @@ func NewRootCmd() *cobra.Command {
 	pf.StringVarP(&f.output, "output", "o", "", "output format: table|json|yaml (auto-detected from TTY)")
 	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, skip confirmations (FORCE_AGENT_MODE)")
 
-	// Ops commands.
 	root.AddCommand(
-		newUpCmd(app),
-		newDownCmd(app),
-		newStatusCmd(app),
-		newVerifyCmd(app),
-		newDoctorCmd(),
-		newTenantCmd(app),
-		newAdminCmd(app),
 		newConfigCmd(app),
 		newCompletionCmd(root),
 		newVersionCmd(app),
@@ -110,7 +73,6 @@ func NewRootCmd() *cobra.Command {
 		newSignupCmd(app),
 		newOnboardCmd(app),
 		newKeysCmd(app),
-		newDemoCmd(app),
 		newTracesCmd(app),
 		newLogsCmd(app),
 		newMetricsCmd(app),
@@ -121,43 +83,13 @@ func NewRootCmd() *cobra.Command {
 		newDashboardsCmd(app),
 		newMonitorsCmd(app),
 		newAgentCmd(),
+		newUsersCmd(app), // Re-parented from tenant member
 	)
-
-	// Managed: the same account + data commands against the hosted Optikk.
-	root.AddCommand(newCloudCmd(app))
 
 	return root
 }
 
-func skipsConfig(cmd *cobra.Command) bool {
-	for c := cmd; c != nil; c = c.Parent() {
-		if c.Annotations[annotationNoConfig] == "true" {
-			return true
-		}
-	}
-	return false
-}
-
-func skipsDeploy(cmd *cobra.Command) bool {
-	for c := cmd; c != nil; c = c.Parent() {
-		if c.Annotations[annotationSkipDeploy] == "true" {
-			return true
-		}
-	}
-	return false
-}
-
-// isManaged reports whether cmd lives under the `cloud` subtree.
-func isManaged(cmd *cobra.Command) bool {
-	for c := cmd; c != nil; c = c.Parent() {
-		if c.Annotations[annotationManaged] == "true" {
-			return true
-		}
-	}
-	return false
-}
-
-// load merges config file, env, and flags into app.Cfg and resolves deploy/.
+// load merges config file, env, and flags into app.Cfg.
 func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	cfg, err := config.Load(f.configFile)
 	if err != nil {
@@ -165,12 +97,6 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	}
 
 	// Flags override file/env only when explicitly set.
-	if cmd.Flags().Changed("target") {
-		cfg.Target = config.Target(f.target)
-	}
-	if cmd.Flags().Changed("deploy-dir") {
-		cfg.DeployDir = f.deployDir
-	}
 	if cmd.Flags().Changed("verbose") {
 		cfg.Verbose = f.verbose
 	}
@@ -185,29 +111,6 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	}
 	a.AgentMode = f.agentMode
 
-	// Cloud subcommands default to the hosted API when no explicit base was
-	// given (--api-url / OPTIKK_API_URL / context). An explicit base still wins.
-	if cfg.ApiURL == "" && isManaged(cmd) {
-		cfg.ApiURL = conn.ManagedAPIURL
-	}
-
-	// Data commands skip deploy path + target validation.
-	if skipsDeploy(cmd) {
-		a.Cfg = cfg
-		return nil
-	}
-
-	switch cfg.Target {
-	case config.TargetLocal:
-	default:
-		return fmt.Errorf("invalid --target %q (want local)", cfg.Target)
-	}
-
-	dir, err := deploypath.Resolve(cfg.DeployDir)
-	if err != nil {
-		return err
-	}
 	a.Cfg = cfg
-	a.DeployDir = dir
 	return nil
 }

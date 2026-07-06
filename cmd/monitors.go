@@ -17,7 +17,6 @@ func newMonitorsCmd(app *App) *cobra.Command {
 		Aliases:     []string{"mon"},
 		Short:       "Manage monitors and alerts",
 		Long:        "CRUD operations for monitors — list, get, create, update, delete, mute, unmute, ack, test.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newMonitorsListCmd(app),

@@ -16,7 +16,6 @@ func newLogsCmd(app *App) *cobra.Command {
 		Use:         "logs",
 		Short:       "Search and inspect logs",
 		Long:        "Query the logs API — search by DSL, view log details.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newLogsSearchCmd(app),
@@ -33,7 +32,6 @@ func newLogsAggCmd(app *App, use, short string, fn func(*queryclient.Client, con
 	cmd := &cobra.Command{
 		Use:         use,
 		Short:       short,
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     fmt.Sprintf(`  optikk logs %s --query "severity_text:ERROR" --from 1h`, use),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)

@@ -12,7 +12,6 @@ func newLLMCmd(app *App) *cobra.Command {
 		Use:         "llm",
 		Short:       "Inspect LLM/AI observability data",
 		Long:        "Query the LLM API — apps, cost, timeseries, and traces for AI workloads.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 	}
 	cmd.AddCommand(
 		newLLMAppsCmd(app),
@@ -29,7 +28,6 @@ func newLLMAppsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "apps",
 		Short:       "List per-service LLM usage summaries",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk llm apps --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -70,7 +68,6 @@ func newLLMCostCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "cost",
 		Short:       "Show LLM cost broken down by a dimension",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk llm cost --group-by model --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -94,7 +91,6 @@ func newLLMTimeseriesCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "timeseries",
 		Short:       "Show an LLM metric timeseries",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk llm timeseries --metric spend --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -119,7 +115,6 @@ func newLLMTracesCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "traces",
 		Short:       "Search LLM traces",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Example:     `  optikk llm traces --from 1h --limit 20`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
@@ -143,7 +138,6 @@ func newLLMTraceGetCmd(app *App) *cobra.Command {
 		Use:         "trace <traceId>",
 		Short:       "Get full detail for one LLM trace",
 		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := resolveClient(app)
 			if err != nil {

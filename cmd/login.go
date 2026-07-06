@@ -18,7 +18,6 @@ func newLoginCmd(app *App) *cobra.Command {
 		Short: "Sign in via your browser (device authorization)",
 		Long: "Starts an RFC 8628 device-authorization login: prints a short code, " +
 			"opens the approval page in your browser, and polls until you confirm.",
-		Annotations: map[string]string{annotationSkipDeploy: "true"},
 		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			apiBase := conn.Resolve(app.Cfg.ApiURL)
