@@ -102,7 +102,7 @@ func otlpEndpoint(apiBase string) string {
 	if label, rest, found := strings.Cut(host, "."); found && label == "api" {
 		host = "ingest." + rest
 	}
-	u.Host = host + ":4318"
+	u.Host = host + ":18317"
 	return u.String()
 }
 
