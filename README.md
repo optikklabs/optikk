@@ -28,7 +28,7 @@ Log into the web UI using the created account. Point your OpenTelemetry SDK at t
 
 ## Global Flags
 
-- `--api-url` / `OPTIKK_API_URL` (default: `http://localhost:18040`)
+- `--api-url` / `OPTIKK_API_URL` (default: `http://localhost:19090`)
 - `--tenant-id` / `OPTIKK_TENANT_ID`
 - `-o/--output` (format: `table|json|yaml`)
 - `--from` / `--to` (e.g., `15m`, `1h`, `7d`, `now`)

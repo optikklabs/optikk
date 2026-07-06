@@ -55,7 +55,7 @@ func NewRootCmd() *cobra.Command {
 	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output")
 
 	// Data-CLI persistent flags (Datadog Pup-style).
-	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL (OPTIKK_API_URL, default http://localhost:18040)")
+	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL (OPTIKK_API_URL, default http://localhost:19090)")
 	pf.Int64Var(&f.tenantID, "tenant-id", 0, "tenant context for X-Tenant-Id header (OPTIKK_TENANT_ID)")
 	pf.StringVarP(&f.output, "output", "o", "", "output format: table|json|yaml (auto-detected from TTY)")
 	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, skip confirmations (FORCE_AGENT_MODE)")
