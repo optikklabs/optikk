@@ -14,6 +14,7 @@ brew install optikk
 **Go (cross-platform):**
 ```bash
 go install github.com/optikklabs/optikk@latest
+export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 *(Or grab a release binary from GitHub Releases)*
 
