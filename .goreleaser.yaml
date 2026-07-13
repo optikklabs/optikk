@@ -31,15 +31,6 @@ archives:
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
 
-homebrew_casks:
-  - name: optikk
-    repository:
-      owner: optikklabs
-      name: homebrew-tap
-    homepage: "https://github.com/optikklabs/optikk"
-    description: "Provision and operate the Optikk observability stack locally"
-    license: "Apache-2.0"
-
 changelog:
   sort: asc
   filters:

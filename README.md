@@ -4,19 +4,12 @@ The `optikk` CLI is a query and API-client tool for the Optikk observability sta
 
 ## Install
 
-**Homebrew (macOS/Linux):**
+macOS and Linux (amd64/arm64), installs to `/usr/local/bin`:
 ```bash
-brew tap optikklabs/tap
-brew trust optikklabs/tap
-brew install optikk
+curl -fsSL https://optikk.in/install.sh | sh
 ```
 
-**Go (cross-platform):**
-```bash
-go install github.com/optikklabs/optikk@latest
-export PATH="$(go env GOPATH)/bin:$PATH"
-```
-*(Or grab a release binary from GitHub Releases)*
+The script ([install.sh](install.sh)) downloads the latest [GitHub Release](https://github.com/optikklabs/optikk/releases) tarball for your platform and verifies its checksum. Use `OPTIKK_VERSION=v<x.y.z>` to pin a version and `OPTIKK_INSTALL_DIR` to change the destination — or grab a release tarball manually.
 
 ## Quick Start
 
