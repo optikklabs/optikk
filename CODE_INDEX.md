@@ -24,7 +24,7 @@ Index of the `optikk` CLI (`github.com/optikklabs/optikk`, Go 1.26, Cobra). The 
 
 - `config` — load/merge config file + `OPTIKK_*` env + flags.
 - `conn` — resolve the query API base URL without kubectl.
-- `apiclient` — auth/signup/device/onboarding client + token store (`~/.optikk/config.json` contexts; `SaveToken`/`LoadToken`/`ClearToken`).
+- `apiclient` — auth/signup/device/onboarding client + token store (`~/.optikk/config.json` contexts; `SaveToken`/`LoadToken`/`ClearToken`). `SignupRequest` carries `accepted_terms` (server requires it); `signup.go` confirms Terms/Privacy consent interactively or via `--accept-terms`.
 - `queryclient` — typed query-API client, one file per domain (traces/logs/metrics/services/infra/llm/saturation/dashboards/monitors + `client.go`).
 - `output` — table/json/yaml writer; `clitime` — `--from/--to` range parsing; `dsl` — query DSL.
 

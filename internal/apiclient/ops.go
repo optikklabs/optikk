@@ -20,10 +20,11 @@ func (c *Client) Login(ctx context.Context, email, password string) (string, err
 
 // SignupRequest is the body for POST /v1/auth/signup.
 type SignupRequest struct {
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	Name       string `json:"name"`
-	TenantName string `json:"tenant_name"`
+	Email         string `json:"email"`
+	Password      string `json:"password"`
+	Name          string `json:"name"`
+	TenantName    string `json:"tenant_name"`
+	AcceptedTerms bool   `json:"accepted_terms"`
 }
 
 // SignupResult is the signup response (subset we surface).

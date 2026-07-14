@@ -15,6 +15,7 @@ import (
 
 func newSignupCmd(app *App) *cobra.Command {
 	var email, password, name, org string
+	var acceptTerms bool
 	cmd := &cobra.Command{
 		Use:   "signup",
 		Short: "Create an Optikk account, tenant and ingest API key",
@@ -25,7 +26,7 @@ func newSignupCmd(app *App) *cobra.Command {
 			apiBase := conn.Resolve(app.Cfg.ApiURL)
 			client := apiclient.New(apiBase)
 			res, err := signupInteractive(cmd, client, apiBase, signupInput{
-				Email: email, Password: password, Name: name, Org: org,
+				Email: email, Password: password, Name: name, Org: org, AcceptTerms: acceptTerms,
 			})
 			if err != nil {
 				return err
@@ -46,6 +47,7 @@ func newSignupCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&password, "password", "", "account password (prompted if omitted)")
 	cmd.Flags().StringVar(&name, "name", "", "your full name (prompted if omitted)")
 	cmd.Flags().StringVar(&org, "org", "", "organization name, becomes your tenant (prompted if omitted)")
+	cmd.Flags().BoolVar(&acceptTerms, "accept-terms", false, "accept the Terms of Service and Privacy Policy (prompted if omitted)")
 	return cmd
 }
 
@@ -53,6 +55,7 @@ func newSignupCmd(app *App) *cobra.Command {
 // the organization name, which becomes the tenant name.
 type signupInput struct {
 	Email, Password, Name, Org string
+	AcceptTerms                bool
 }
 
 // signupInteractive prompts for any missing fields, signs up, and caches the JWT.
@@ -73,9 +76,13 @@ func signupInteractive(cmd *cobra.Command, client *apiclient.Client, apiBase str
 			return apiclient.SignupResult{}, err
 		}
 	}
+	if err = confirmTerms(cmd, in, &si); err != nil {
+		return apiclient.SignupResult{}, err
+	}
 
 	res, err := client.Signup(cmd.Context(), apiclient.SignupRequest{
 		Email: si.Email, Password: si.Password, Name: si.Name, TenantName: si.Org,
+		AcceptedTerms: si.AcceptTerms,
 	})
 	if err != nil {
 		return apiclient.SignupResult{}, conn.HintUnreachable(apiBase, fmt.Errorf("signup failed: %w", err))
@@ -84,6 +91,29 @@ func signupInteractive(cmd *cobra.Command, client *apiclient.Client, apiBase str
 		return apiclient.SignupResult{}, err
 	}
 	return res, nil
+}
+
+// confirmTerms requires the user to accept the Terms and Privacy Policy. The
+// --accept-terms flag records consent non-interactively; otherwise we prompt.
+func confirmTerms(cmd *cobra.Command, in *bufio.Reader, si *signupInput) error {
+	if si.AcceptTerms {
+		return nil
+	}
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "By continuing you agree to the Terms of Service (https://optikk.in/terms)\n")
+	fmt.Fprintf(out, "and Privacy Policy (https://optikk.in/privacy).\n")
+	fmt.Fprint(out, "Accept? [y/N]: ")
+	line, err := in.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("read confirmation: %w", err)
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		si.AcceptTerms = true
+		return nil
+	default:
+		return fmt.Errorf("signup requires accepting the Terms of Service and Privacy Policy")
+	}
 }
 
 // otlpEndpoint maps the API base to Traefik's OTLP/HTTP entrypoint (:4318).
