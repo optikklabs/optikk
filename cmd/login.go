@@ -3,10 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
 	"github.com/optikklabs/optikk/internal/browser"
+	"github.com/optikklabs/optikk/internal/endpoint"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +31,7 @@ func newLoginCmd(app *App) *cobra.Command {
 				return fmt.Errorf("could not start login: %w\n\nIs the API running at %s?", err, apiBase)
 			}
 
-			verifyURL := fmt.Sprintf("%s/device?user_code=%s", apiBase, code.UserCode)
+			verifyURL := deviceVerifyURL(code.UserCode)
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "First, open this page in your browser:\n\n    %s\n\n", verifyURL)
 			fmt.Fprintf(w, "and confirm this code:\n\n    %s\n\n", code.UserCode)
@@ -47,6 +49,16 @@ func newLoginCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// deviceVerifyURL builds the browser page that approves a device login.
+//
+// The page is served by the web app, not the API: api.optikk.in exposes the
+// device endpoints only as POST JSON, so deriving this from the API base — as
+// this once did — hands the user a 404. It is deliberately not affected by
+// --api-url: pointing the CLI at a different API does not move the web app.
+func deviceVerifyURL(userCode string) string {
+	return fmt.Sprintf("%s/device?user_code=%s", endpoint.AppURL, url.QueryEscape(userCode))
 }
 
 // pollDeviceToken loops at the server-advised interval until the user approves
