@@ -58,8 +58,11 @@ curl -fsSL -o "${TMP_DIR}/${CHECKSUMS}" "${BASE_URL}/${CHECKSUMS}" ||
 # corrupt download below, but not a substituted one. `optikk update` always
 # verifies, because it has the public key compiled in.
 if command -v cosign >/dev/null 2>&1; then
-  if curl -fsSL -o "${TMP_DIR}/${CHECKSUMS}.sig" "${BASE_URL}/${CHECKSUMS}.sig" &&
-    curl -fsSL -o "${TMP_DIR}/cosign.pub" "https://raw.githubusercontent.com/${REPO}/${TAG}/internal/selfupdate/cosign.pub"; then
+  # -fsL, not -fsSL: a missing signature is expected on releases cut before
+  # signing was enabled, and the `else` below reports it in our own words. With
+  # -S curl also prints its own 404 first, which reads like the install failed.
+  if curl -fsL -o "${TMP_DIR}/${CHECKSUMS}.sig" "${BASE_URL}/${CHECKSUMS}.sig" &&
+    curl -fsL -o "${TMP_DIR}/cosign.pub" "https://raw.githubusercontent.com/${REPO}/${TAG}/internal/selfupdate/cosign.pub"; then
     cosign verify-blob \
       --key "${TMP_DIR}/cosign.pub" \
       --signature "${TMP_DIR}/${CHECKSUMS}.sig" \
