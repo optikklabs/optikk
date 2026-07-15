@@ -2,7 +2,9 @@
 package cmd
 
 import (
+	"github.com/optikklabs/optikk/internal/apiclient"
 	"github.com/optikklabs/optikk/internal/config"
+	"github.com/optikklabs/optikk/internal/endpoint"
 	"github.com/spf13/cobra"
 )
 
@@ -11,8 +13,26 @@ import (
 type App struct {
 	Cfg config.Config
 
+	// APIBase is the resolved, validated HTTPS API URL, and apiBaseErr the
+	// reason it could not be resolved. Precedence is applied exactly once per
+	// invocation, in load; commands reach it through API().
+	APIBase    string
+	apiBaseErr error
+
 	// Data-CLI state (populated from persistent flags).
 	AgentMode bool
+}
+
+// API returns the API base URL, or the reason it is unusable.
+//
+// Resolution failures surface here rather than in load so that a bad saved
+// context does not brick the very commands needed to repair it: `optikk config
+// set-context`, `version`, and `update` never call this.
+func (a *App) API() (string, error) {
+	if a.apiBaseErr != nil {
+		return "", a.apiBaseErr
+	}
+	return a.APIBase, nil
 }
 
 // persistent flag values, resolved into App.Cfg in PersistentPreRunE.
@@ -55,7 +75,7 @@ func NewRootCmd() *cobra.Command {
 	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output")
 
 	// Data-CLI persistent flags (Datadog Pup-style).
-	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL (OPTIKK_API_URL, default http://localhost:19090)")
+	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL, https only (OPTIKK_API_URL, default "+endpoint.APIURL+")")
 	pf.Int64Var(&f.tenantID, "tenant-id", 0, "tenant context for X-Tenant-Id header (OPTIKK_TENANT_ID)")
 	pf.StringVarP(&f.output, "output", "o", "", "output format: table|json|yaml (auto-detected from TTY)")
 	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, skip confirmations (FORCE_AGENT_MODE)")
@@ -64,7 +84,12 @@ func NewRootCmd() *cobra.Command {
 		newConfigCmd(app),
 		newCompletionCmd(root),
 		newVersionCmd(app),
+		newUpdateCmd(app),
+		newStatusCmd(app),
+		newWhoamiCmd(app),
+		newOpenCmd(app),
 	)
+	root.AddCommand(newLinkCmds()...)
 
 	// Data commands (Datadog Pup-style).
 	root.AddCommand(
@@ -111,6 +136,16 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	}
 	a.AgentMode = f.agentMode
 
+	// Resolve the API base once: flag/env → active context → hosted default.
+	// A missing or unreadable context is not fatal; it just means no override.
+	var contextURL string
+	if ctx, err := apiclient.CurrentContext(); err == nil {
+		contextURL = ctx.APIURL
+		if cfg.TenantID == 0 {
+			cfg.TenantID = ctx.TenantID
+		}
+	}
+	a.APIBase, a.apiBaseErr = endpoint.Resolve(cfg.ApiURL, contextURL)
 	a.Cfg = cfg
 	return nil
 }

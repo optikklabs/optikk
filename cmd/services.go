@@ -11,9 +11,9 @@ import (
 
 func newServicesCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "services",
-		Short:       "Inspect the service fleet and dependency topology",
-		Long:        "Query the services API — RED metrics, dependency topology, and error groups.",
+		Use:   "services",
+		Short: "Inspect the service fleet and dependency topology",
+		Long:  "Query the services API — RED metrics, dependency topology, and error groups.",
 	}
 	cmd.AddCommand(
 		newServicesListCmd(app),
@@ -28,9 +28,9 @@ func newServicesCmd(app *App) *cobra.Command {
 func newServicesListCmd(app *App) *cobra.Command {
 	var from, to string
 	cmd := &cobra.Command{
-		Use:         "list",
-		Short:       "List RED metrics for every service in the fleet",
-		Example:     `  optikk services list --from 1h`,
+		Use:     "list",
+		Short:   "List RED metrics for every service in the fleet",
+		Example: `  optikk services list --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)
 			if err != nil {
@@ -70,9 +70,9 @@ func newServicesListCmd(app *App) *cobra.Command {
 func newServicesTopologyCmd(app *App) *cobra.Command {
 	var from, to, service string
 	cmd := &cobra.Command{
-		Use:         "topology",
-		Short:       "Show the service dependency graph",
-		Example:     `  optikk services topology --service api --from 1h`,
+		Use:     "topology",
+		Short:   "Show the service dependency graph",
+		Example: `  optikk services topology --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)
 			if err != nil {
@@ -99,9 +99,9 @@ func newServicesErrorsCmd(app *App) *cobra.Command {
 	var from, to, service string
 	var limit int
 	cmd := &cobra.Command{
-		Use:         "errors",
-		Short:       "List aggregated error groups",
-		Example:     `  optikk services errors --service api --from 1h`,
+		Use:     "errors",
+		Short:   "List aggregated error groups",
+		Example: `  optikk services errors --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)
 			if err != nil {
@@ -147,9 +147,9 @@ func newServicesErrorsCmd(app *App) *cobra.Command {
 func newServicesSummaryCmd(app *App) *cobra.Command {
 	var from, to, service string
 	cmd := &cobra.Command{
-		Use:         "summary",
-		Short:       "Show the RED summary for one service",
-		Example:     `  optikk services summary --service api --from 1h`,
+		Use:     "summary",
+		Short:   "Show the RED summary for one service",
+		Example: `  optikk services summary --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if service == "" {
 				return fmt.Errorf("--service is required")
@@ -178,9 +178,9 @@ func newServicesSummaryCmd(app *App) *cobra.Command {
 func newServicesTopEndpointsCmd(app *App) *cobra.Command {
 	var from, to, service string
 	cmd := &cobra.Command{
-		Use:         "top-endpoints",
-		Short:       "Show the busiest endpoints across the fleet or one service",
-		Example:     `  optikk services top-endpoints --service api --from 1h`,
+		Use:     "top-endpoints",
+		Short:   "Show the busiest endpoints across the fleet or one service",
+		Example: `  optikk services top-endpoints --service api --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := resolveClient(app)
 			if err != nil {

@@ -13,9 +13,9 @@ import (
 
 func newLogsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "logs",
-		Short:       "Search and inspect logs",
-		Long:        "Query the logs API — search by DSL, view log details.",
+		Use:   "logs",
+		Short: "Search and inspect logs",
+		Long:  "Query the logs API — search by DSL, view log details.",
 	}
 	cmd.AddCommand(
 		newLogsSearchCmd(app),
@@ -30,9 +30,9 @@ func newLogsCmd(app *App) *cobra.Command {
 func newLogsAggCmd(app *App, use, short string, fn func(*queryclient.Client, context.Context, queryclient.LogsRangeRequest) (any, error)) *cobra.Command {
 	var query, from, to string
 	cmd := &cobra.Command{
-		Use:         use,
-		Short:       short,
-		Example:     fmt.Sprintf(`  optikk logs %s --query "severity_text:ERROR" --from 1h`, use),
+		Use:     use,
+		Short:   short,
+		Example: fmt.Sprintf(`  optikk logs %s --query "severity_text:ERROR" --from 1h`, use),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {

@@ -1,0 +1,9 @@
+PLACEHOLDER — no release signing key is configured yet.
+
+Replace this file with the public half of the Optikk release key, then commit it:
+
+    scripts/gen-release-key.sh
+
+Until this file holds a real PEM-encoded ECDSA public key, `optikk update`
+fails closed: it refuses to install anything rather than installing something
+it cannot verify. See scripts/gen-release-key.sh for the key ceremony.

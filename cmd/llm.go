@@ -9,9 +9,9 @@ import (
 
 func newLLMCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "llm",
-		Short:       "Inspect LLM/AI observability data",
-		Long:        "Query the LLM API — apps, cost, timeseries, and traces for AI workloads.",
+		Use:   "llm",
+		Short: "Inspect LLM/AI observability data",
+		Long:  "Query the LLM API — apps, cost, timeseries, and traces for AI workloads.",
 	}
 	cmd.AddCommand(
 		newLLMAppsCmd(app),
@@ -26,9 +26,9 @@ func newLLMCmd(app *App) *cobra.Command {
 func newLLMAppsCmd(app *App) *cobra.Command {
 	var from, to string
 	cmd := &cobra.Command{
-		Use:         "apps",
-		Short:       "List per-service LLM usage summaries",
-		Example:     `  optikk llm apps --from 1h`,
+		Use:     "apps",
+		Short:   "List per-service LLM usage summaries",
+		Example: `  optikk llm apps --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -66,9 +66,9 @@ func newLLMAppsCmd(app *App) *cobra.Command {
 func newLLMCostCmd(app *App) *cobra.Command {
 	var from, to, groupBy string
 	cmd := &cobra.Command{
-		Use:         "cost",
-		Short:       "Show LLM cost broken down by a dimension",
-		Example:     `  optikk llm cost --group-by model --from 1h`,
+		Use:     "cost",
+		Short:   "Show LLM cost broken down by a dimension",
+		Example: `  optikk llm cost --group-by model --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -89,9 +89,9 @@ func newLLMCostCmd(app *App) *cobra.Command {
 func newLLMTimeseriesCmd(app *App) *cobra.Command {
 	var from, to, metric string
 	cmd := &cobra.Command{
-		Use:         "timeseries",
-		Short:       "Show an LLM metric timeseries",
-		Example:     `  optikk llm timeseries --metric spend --from 1h`,
+		Use:     "timeseries",
+		Short:   "Show an LLM metric timeseries",
+		Example: `  optikk llm timeseries --metric spend --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -113,9 +113,9 @@ func newLLMTracesCmd(app *App) *cobra.Command {
 	var from, to string
 	var limit int
 	cmd := &cobra.Command{
-		Use:         "traces",
-		Short:       "Search LLM traces",
-		Example:     `  optikk llm traces --from 1h --limit 20`,
+		Use:     "traces",
+		Short:   "Search LLM traces",
+		Example: `  optikk llm traces --from 1h --limit 20`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -135,9 +135,9 @@ func newLLMTracesCmd(app *App) *cobra.Command {
 
 func newLLMTraceGetCmd(app *App) *cobra.Command {
 	return &cobra.Command{
-		Use:         "trace <traceId>",
-		Short:       "Get full detail for one LLM trace",
-		Args:        cobra.ExactArgs(1),
+		Use:   "trace <traceId>",
+		Short: "Get full detail for one LLM trace",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := resolveClient(app)
 			if err != nil {

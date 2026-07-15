@@ -15,9 +15,9 @@ var (
 
 func newVersionCmd(_ *App) *cobra.Command {
 	return &cobra.Command{
-		Use:         "version",
-		Aliases:     []string{"v"},
-		Short:       "Print build version information",
+		Use:     "version",
+		Aliases: []string{"v"},
+		Short:   "Print build version information",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			fmt.Fprintf(cmd.OutOrStdout(), "optikk %s\ncommit %s\nbuilt  %s\n", version, commit, date)
 			return nil

@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/optikklabs/optikk/internal/conn"
+	"github.com/optikklabs/optikk/internal/endpoint"
 	"github.com/optikklabs/optikk/internal/queryclient"
 	"github.com/spf13/cobra"
 )
 
 func newDashboardsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "dashboards",
-		Aliases:     []string{"dash"},
-		Short:       "Manage dashboards",
-		Long:        "CRUD operations for dashboard pages — list, get, create, update, delete, export, import.",
+		Use:     "dashboards",
+		Aliases: []string{"dash"},
+		Short:   "Manage dashboards",
+		Long:    "CRUD operations for dashboard pages — list, get, create, update, delete, export, import.",
 	}
 	cmd.AddCommand(
 		newDashboardsListCmd(app),
@@ -278,9 +278,9 @@ func newDashboardsURLCmd(app *App) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		Example: `  optikk dashboards url 3 --from 1h`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			apiBase := conn.Resolve(app.Cfg.ApiURL)
+			// Dashboards are rendered by the web app, not the API host.
 			id := args[0]
-			url := fmt.Sprintf("%s/dashboards/%s", apiBase, id)
+			url := fmt.Sprintf("%s/dashboards/%s", endpoint.AppURL, id)
 			if from != "" {
 				url += "?from=" + from
 			}

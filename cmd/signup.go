@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
-	"github.com/optikklabs/optikk/internal/conn"
+	"github.com/optikklabs/optikk/internal/endpoint"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -21,9 +21,12 @@ func newSignupCmd(app *App) *cobra.Command {
 		Short: "Create an Optikk account, tenant and ingest API key",
 		Long: "Self-serve signup via POST /api/v1/auth/signup: creates your account and tenant,\n" +
 			"prints the tenant's ingest API key, and caches the session JWT at ~/.optikk/config.json.",
-		Example:     "  optikk signup\n  optikk signup --email founder@startup.dev --org startup --name Founder",
+		Example: "  optikk signup\n  optikk signup --email founder@startup.dev --org startup --name Founder",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			apiBase := conn.Resolve(app.Cfg.ApiURL)
+			apiBase, err := app.API()
+			if err != nil {
+				return err
+			}
 			client := apiclient.New(apiBase)
 			res, err := signupInteractive(cmd, client, apiBase, signupInput{
 				Email: email, Password: password, Name: name, Org: org, AcceptTerms: acceptTerms,
@@ -85,7 +88,7 @@ func signupInteractive(cmd *cobra.Command, client *apiclient.Client, apiBase str
 		AcceptedTerms: si.AcceptTerms,
 	})
 	if err != nil {
-		return apiclient.SignupResult{}, conn.HintUnreachable(apiBase, fmt.Errorf("signup failed: %w", err))
+		return apiclient.SignupResult{}, endpoint.HintUnreachable(apiBase, fmt.Errorf("signup failed: %w", err))
 	}
 	if err := apiclient.SaveToken(apiBase, res.AccessToken); err != nil {
 		return apiclient.SignupResult{}, err
@@ -120,6 +123,10 @@ func confirmTerms(cmd *cobra.Command, in *bufio.Reader, si *signupInput) error {
 // A deploy that fronts OTLP on a separate `ingest.<domain>` host has its `api`
 // label swapped to `ingest`; localhost/IPs keep their host. An explicit
 // OTEL_EXPORTER_OTLP_ENDPOINT env wins over the guess.
+//
+// 4318 is the public OTLP/HTTP port on the Traefik load balancer. The ingest
+// Service's own 18317/18318 are cluster-internal and not routable from an
+// SDK, so they must not appear here.
 func otlpEndpoint(apiBase string) string {
 	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
 		return v
@@ -132,7 +139,7 @@ func otlpEndpoint(apiBase string) string {
 	if label, rest, found := strings.Cut(host, "."); found && label == "api" {
 		host = "ingest." + rest
 	}
-	u.Host = host + ":18317"
+	u.Host = host + ":4318"
 	return u.String()
 }
 

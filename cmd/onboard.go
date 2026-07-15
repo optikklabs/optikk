@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
-	"github.com/optikklabs/optikk/internal/conn"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +18,10 @@ func newOnboardCmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			out := cmd.OutOrStdout()
-			apiBase := conn.Resolve(app.Cfg.ApiURL)
+			apiBase, err := app.API()
+			if err != nil {
+				return err
+			}
 			client := apiclient.New(apiBase)
 
 			if cachedBase, tok, err := apiclient.LoadToken(); err == nil && cachedBase == apiBase {

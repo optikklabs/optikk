@@ -11,9 +11,9 @@ import (
 
 func newInfraCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "infra",
-		Short:       "Inspect host, node, and pod infrastructure",
-		Long:        "Query the infrastructure API — hosts, Kubernetes nodes, pods, CPU, and memory.",
+		Use:   "infra",
+		Short: "Inspect host, node, and pod infrastructure",
+		Long:  "Query the infrastructure API — hosts, Kubernetes nodes, pods, CPU, and memory.",
 	}
 	cmd.AddCommand(
 		newInfraHostsCmd(app),
@@ -28,9 +28,9 @@ func newInfraCmd(app *App) *cobra.Command {
 func newInfraHostsCmd(app *App) *cobra.Command {
 	var from, to, service string
 	cmd := &cobra.Command{
-		Use:         "hosts",
-		Short:       "List host-level saturation and RED metrics",
-		Example:     `  optikk infra hosts --from 1h`,
+		Use:     "hosts",
+		Short:   "List host-level saturation and RED metrics",
+		Example: `  optikk infra hosts --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -66,9 +66,9 @@ func newInfraHostsCmd(app *App) *cobra.Command {
 func newInfraNodesCmd(app *App) *cobra.Command {
 	var from, to string
 	cmd := &cobra.Command{
-		Use:         "nodes",
-		Short:       "List Kubernetes node-level aggregates",
-		Example:     `  optikk infra nodes --from 1h`,
+		Use:     "nodes",
+		Short:   "List Kubernetes node-level aggregates",
+		Example: `  optikk infra nodes --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -103,9 +103,9 @@ func newInfraNodesCmd(app *App) *cobra.Command {
 func newInfraPodsCmd(app *App) *cobra.Command {
 	var from, to string
 	cmd := &cobra.Command{
-		Use:         "pods",
-		Short:       "List pod-level RED aggregates",
-		Example:     `  optikk infra pods --from 1h`,
+		Use:     "pods",
+		Short:   "List pod-level RED aggregates",
+		Example: `  optikk infra pods --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -148,8 +148,8 @@ func newInfraMemoryCmd(app *App) *cobra.Command {
 func newInstanceMetricCmd(app *App, use, short string, fn func(*queryclient.Client, context.Context, int64, int64) ([]queryclient.InstanceMetric, error)) *cobra.Command {
 	var from, to string
 	cmd := &cobra.Command{
-		Use:         use,
-		Short:       short,
+		Use:   use,
+		Short: short,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {

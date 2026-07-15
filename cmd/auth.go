@@ -5,19 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
-	"github.com/optikklabs/optikk/internal/conn"
 	"github.com/spf13/cobra"
 )
 
 func newAuthCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "auth",
-		Short:       "Authenticate with the Optikk API",
-		Long:        "Manage authentication sessions for data commands (traces, logs, metrics, dashboards, monitors).",
-		Example:     "  optikk auth login\n  optikk auth login --email user@example.com --password '...'\n  optikk auth status\n  optikk auth logout",
+		Use:     "auth",
+		Short:   "Authenticate with the Optikk API",
+		Long:    "Manage authentication sessions for data commands (traces, logs, metrics, dashboards, monitors).",
+		Example: "  optikk auth login\n  optikk auth login --email user@example.com --password '...'\n  optikk auth status\n  optikk auth logout",
 	}
 	cmd.AddCommand(
 		newAuthLoginCmd(app),
@@ -34,7 +32,10 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 		Short: "Authenticate and cache a session JWT",
 		Long:  "Logs in via POST /api/v1/auth/login, caches the JWT at ~/.optikk/config.json.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			apiBase := conn.Resolve(app.Cfg.ApiURL)
+			apiBase, err := app.API()
+			if err != nil {
+				return err
+			}
 			client := apiclient.New(apiBase)
 			token, err := client.Login(cmd.Context(), email, password)
 			if err != nil {
@@ -59,45 +60,7 @@ func newAuthStatusCmd(app *App) *cobra.Command {
 		Use:   "status",
 		Short: "Show current authentication status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			// Try OPTIKK_TOKEN env first, then cached file.
-			token := app.Cfg.Token
-			apiBase := conn.Resolve(app.Cfg.ApiURL)
-			source := "OPTIKK_TOKEN"
-
-			if token == "" {
-				base, tok, err := apiclient.LoadToken()
-				if err != nil {
-					fmt.Fprintln(cmd.OutOrStdout(), "✗ Not authenticated")
-					fmt.Fprintln(cmd.OutOrStdout(), "  Run: optikk auth login")
-					return nil
-				}
-				token = tok
-				apiBase = base
-				source = "~/.optikk/config.json"
-			}
-
-			// Decode JWT payload (no verification — just display).
-			claims := decodeJWTClaims(token)
-			email, _ := claims["email"].(string)
-			exp, _ := claims["exp"].(float64)
-
-			fmt.Fprintf(cmd.OutOrStdout(), "✓ Authenticated\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "  Source: %s\n", source)
-			fmt.Fprintf(cmd.OutOrStdout(), "  API:    %s\n", apiBase)
-			if email != "" {
-				fmt.Fprintf(cmd.OutOrStdout(), "  Email:  %s\n", email)
-			}
-			if exp > 0 {
-				expTime := time.Unix(int64(exp), 0)
-				if time.Now().After(expTime) {
-					fmt.Fprintf(cmd.OutOrStdout(), "  Expiry: %s (EXPIRED)\n", expTime.Format(time.RFC3339))
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "  Expiry: %s\n", expTime.Format(time.RFC3339))
-				}
-			}
-			if app.Cfg.TenantID > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "  Tenant:   %d\n", app.Cfg.TenantID)
-			}
+			printSession(cmd.OutOrStdout(), app, "")
 			return nil
 		},
 	}

@@ -11,9 +11,9 @@ import (
 
 func newMetricsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "metrics",
-		Short:       "List, query, and inspect metrics",
-		Long:        "Query the metrics API — list names, run timeseries queries, list tags.",
+		Use:   "metrics",
+		Short: "List, query, and inspect metrics",
+		Long:  "Query the metrics API — list names, run timeseries queries, list tags.",
 	}
 	cmd.AddCommand(
 		newMetricsListCmd(app),

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/optikklabs/optikk/internal/httpx"
 )
 
 // Client is a thin HTTP client for the query API under /api.
@@ -19,12 +21,12 @@ type Client struct {
 	http  *http.Client
 }
 
-// New builds a client for the query API. apiBase is the Traefik surface
-// (e.g. http://localhost:8080); the API lives under /api.
+// New builds a client for the query API. apiBase is the API host
+// (e.g. https://api.optikk.in); the API lives under /api.
 func New(apiBase string) *Client {
 	return &Client{
 		base: strings.TrimRight(apiBase, "/") + "/api",
-		http: &http.Client{Timeout: 30 * time.Second},
+		http: httpx.Client(30 * time.Second),
 	}
 }
 

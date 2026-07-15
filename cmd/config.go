@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
+	"github.com/optikklabs/optikk/internal/endpoint"
 	"github.com/spf13/cobra"
 )
 
@@ -20,8 +21,101 @@ func newConfigCmd(app *App) *cobra.Command {
 		newConfigGetContextsCmd(),
 		newConfigSetContextCmd(),
 		newConfigUseContextCmd(),
+		newConfigCurrentContextCmd(),
+		newConfigSetCmd(),
+		newConfigUnsetCmd(),
+		newConfigDeleteContextCmd(),
 	)
 	return cmd
+}
+
+// configKeys are the settable fields on a context, named as they appear on disk.
+const configKeys = "api_url, tenant_id"
+
+func newConfigCurrentContextCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "current-context",
+		Short: "Print the active context's name",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			name, err := apiclient.CurrentContextName()
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), name)
+			return nil
+		},
+	}
+}
+
+func newConfigSetCmd() *cobra.Command {
+	var context string
+	cmd := &cobra.Command{
+		Use:     "set <key> <value>",
+		Short:   "Set one field on a context (" + configKeys + ")",
+		Args:    cobra.ExactArgs(2),
+		Example: "  optikk config set api_url https://api.optikk.in\n  optikk config set tenant_id 42",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name, err := targetContext(context)
+			if err != nil {
+				return err
+			}
+			if err := apiclient.SetContextValue(name, args[0], args[1]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "context %q: %s = %s\n", name, args[0], args[1])
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&context, "context", "", "context to modify (default: the active one)")
+	return cmd
+}
+
+func newConfigUnsetCmd() *cobra.Command {
+	var context string
+	cmd := &cobra.Command{
+		Use:     "unset <key>",
+		Short:   "Clear one field on a context (" + configKeys + ")",
+		Args:    cobra.ExactArgs(1),
+		Example: "  optikk config unset tenant_id",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name, err := targetContext(context)
+			if err != nil {
+				return err
+			}
+			if err := apiclient.UnsetContextValue(name, args[0]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "context %q: %s cleared\n", name, args[0])
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&context, "context", "", "context to modify (default: the active one)")
+	return cmd
+}
+
+func newConfigDeleteContextCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "delete-context <name>",
+		Short:   "Delete a context and its cached session",
+		Args:    cobra.ExactArgs(1),
+		Aliases: []string{"unset-context"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := apiclient.DeleteContext(args[0]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "deleted context %q\n", args[0])
+			return nil
+		},
+	}
+}
+
+// targetContext returns the named context, or the active one when unnamed.
+func targetContext(name string) (string, error) {
+	if name != "" {
+		return name, nil
+	}
+	return apiclient.CurrentContextName()
 }
 
 func newConfigInitCmd() *cobra.Command {
@@ -30,14 +124,18 @@ func newConfigInitCmd() *cobra.Command {
 		Short: "Initialize a new CLI context interactively",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			in := bufio.NewReader(cmd.InOrStdin())
-			apiURL, err := promptIfEmpty(cmd, in, "API URL [https://api.optikk.in]", "")
+			apiURL, err := promptIfEmpty(cmd, in, "API URL ["+endpoint.APIURL+"]", "")
 			if err != nil {
 				return err
 			}
 			if apiURL == "" {
-				apiURL = "https://api.optikk.in"
+				apiURL = endpoint.APIURL
 			}
-			
+			// Reject an unusable URL now, not on the next command.
+			if apiURL, err = endpoint.Resolve(apiURL, ""); err != nil {
+				return err
+			}
+
 			name, err := promptIfEmpty(cmd, in, "Context name [default]", "")
 			if err != nil {
 				return err
@@ -66,8 +164,14 @@ func newConfigShowCmd(app *App) *cobra.Command {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "api_url:       %s\n", ctx.APIURL)
-			fmt.Fprintf(w, "tenant_id:       %d\n", ctx.TenantID)
+			// Report the effective API, but never fail: `config show` has to stay
+			// usable precisely when the stored URL is the thing that is wrong.
+			apiBase, err := app.API()
+			if err != nil {
+				apiBase = fmt.Sprintf("%s (unusable — %s)", ctx.APIURL, firstLine(err))
+			}
+			fmt.Fprintf(w, "api_url:       %s\n", apiBase)
+			fmt.Fprintf(w, "tenant_id:     %d\n", ctx.TenantID)
 			fmt.Fprintf(w, "authenticated: %t\n", ctx.Token != "")
 			return nil
 		},

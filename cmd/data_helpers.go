@@ -6,7 +6,6 @@ import (
 
 	"github.com/optikklabs/optikk/internal/apiclient"
 	"github.com/optikklabs/optikk/internal/clitime"
-	"github.com/optikklabs/optikk/internal/conn"
 	"github.com/optikklabs/optikk/internal/output"
 	"github.com/optikklabs/optikk/internal/queryclient"
 	"github.com/spf13/cobra"
@@ -15,25 +14,27 @@ import (
 // resolveClient builds a queryclient.Client from app config, resolving the
 // token from OPTIKK_TOKEN env or ~/.optikk/config.json.
 func resolveClient(app *App) (*queryclient.Client, error) {
-	apiBase := conn.Resolve(app.Cfg.ApiURL)
-	token := app.Cfg.Token
-	tenantID := app.Cfg.TenantID
-
-	if token == "" {
-		ctx, err := apiclient.CurrentContext()
-		if err != nil || ctx.Token == "" {
-			return nil, fmt.Errorf("not authenticated — run: optikk login\n  (or set OPTIKK_TOKEN env var)")
-		}
-		token = ctx.Token
-		if app.Cfg.ApiURL == "" && ctx.APIURL != "" {
-			apiBase = ctx.APIURL
-		}
-		if tenantID == 0 {
-			tenantID = ctx.TenantID
-		}
+	apiBase, err := app.API()
+	if err != nil {
+		return nil, err
 	}
+	token, err := resolveToken(app)
+	if err != nil {
+		return nil, err
+	}
+	return queryclient.New(apiBase, token, app.Cfg.TenantID), nil
+}
 
-	return queryclient.New(apiBase, token, tenantID), nil
+// resolveToken returns the session JWT from OPTIKK_TOKEN or the active context.
+func resolveToken(app *App) (string, error) {
+	if app.Cfg.Token != "" {
+		return app.Cfg.Token, nil
+	}
+	ctx, err := apiclient.CurrentContext()
+	if err != nil || ctx.Token == "" {
+		return "", fmt.Errorf("not authenticated — run: optikk login\n  (or set OPTIKK_TOKEN env var)")
+	}
+	return ctx.Token, nil
 }
 
 // resolveOutput returns an output.Writer for the current command.

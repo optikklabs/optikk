@@ -13,9 +13,9 @@ import (
 
 func newTracesCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "traces",
-		Short:       "Search and inspect distributed traces",
-		Long:        "Query the traces API — search by DSL, get trace details, view trends.",
+		Use:   "traces",
+		Short: "Search and inspect distributed traces",
+		Long:  "Query the traces API — search by DSL, get trace details, view trends.",
 	}
 	cmd.AddCommand(
 		newTracesSearchCmd(app),
@@ -34,9 +34,9 @@ func newTracesCmd(app *App) *cobra.Command {
 // client method that returns analytical JSON for one trace.
 func newTraceAnalysisCmd(app *App, use, short string, fn func(*queryclient.Client, context.Context, string) (any, error)) *cobra.Command {
 	return &cobra.Command{
-		Use:         use + " <traceId>",
-		Short:       short,
-		Args:        cobra.ExactArgs(1),
+		Use:   use + " <traceId>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := resolveClient(app)
 			if err != nil {
@@ -57,10 +57,10 @@ func newTraceAnalysisCmd(app *App, use, short string, fn func(*queryclient.Clien
 func newTracesRelatedCmd(app *App) *cobra.Command {
 	var from, to, service, operation string
 	cmd := &cobra.Command{
-		Use:         "related <traceId>",
-		Short:       "Show traces sharing a service+operation with a trace",
-		Args:        cobra.ExactArgs(1),
-		Example:     `  optikk traces related <id> --service api --operation GET /users --from 1h`,
+		Use:     "related <traceId>",
+		Short:   "Show traces sharing a service+operation with a trace",
+		Args:    cobra.ExactArgs(1),
+		Example: `  optikk traces related <id> --service api --operation GET /users --from 1h`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if service == "" || operation == "" {
 				return fmt.Errorf("--service and --operation are required")
@@ -153,9 +153,9 @@ func newTracesSearchCmd(app *App) *cobra.Command {
 
 func newTracesGetCmd(app *App) *cobra.Command {
 	return &cobra.Command{
-		Use:         "get <traceId>",
-		Short:       "Get full trace details",
-		Args:        cobra.ExactArgs(1),
+		Use:   "get <traceId>",
+		Short: "Get full trace details",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := resolveClient(app)
 			if err != nil {

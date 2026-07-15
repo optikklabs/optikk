@@ -3,12 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
-	"github.com/optikklabs/optikk/internal/conn"
+	"github.com/optikklabs/optikk/internal/browser"
 	"github.com/spf13/cobra"
 )
 
@@ -18,9 +16,12 @@ func newLoginCmd(app *App) *cobra.Command {
 		Short: "Sign in via your browser (device authorization)",
 		Long: "Starts an RFC 8628 device-authorization login: prints a short code, " +
 			"opens the approval page in your browser, and polls until you confirm.",
-		Args:        cobra.NoArgs,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			apiBase := conn.Resolve(app.Cfg.ApiURL)
+			apiBase, err := app.API()
+			if err != nil {
+				return err
+			}
 			client := apiclient.New(apiBase)
 
 			code, err := client.StartDeviceAuth(cmd.Context())
@@ -32,7 +33,7 @@ func newLoginCmd(app *App) *cobra.Command {
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "First, open this page in your browser:\n\n    %s\n\n", verifyURL)
 			fmt.Fprintf(w, "and confirm this code:\n\n    %s\n\n", code.UserCode)
-			openBrowser(verifyURL)
+			browser.Open(verifyURL)
 			fmt.Fprintln(w, "Waiting for approval…")
 
 			token, err := pollDeviceToken(cmd.Context(), client, code)
@@ -85,20 +86,4 @@ func pollDeviceToken(ctx context.Context, client *apiclient.Client, code apiclie
 			// keep waiting
 		}
 	}
-}
-
-// openBrowser best-effort opens a URL; failure is non-fatal since the CLI
-// already printed the link.
-func openBrowser(url string) {
-	var cmd string
-	var args []string
-	switch runtime.GOOS {
-	case "darwin":
-		cmd, args = "open", []string{url}
-	case "windows":
-		cmd, args = "rundll32", []string{"url.dll,FileProtocolHandler", url}
-	default:
-		cmd, args = "xdg-open", []string{url}
-	}
-	_ = exec.Command(cmd, args...).Start()
 }

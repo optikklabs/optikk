@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 )
 
 // Context is one named CLI profile: which API, tenant, and session it targets.
@@ -192,6 +193,76 @@ func SetContext(name, apiURL string, tenantID int64) error {
 		cfg.CurrentContext = name
 	}
 	return saveConfig(cfg)
+}
+
+// SetContextValue sets a single field on a named context, leaving the rest
+// (including any cached session) untouched. Supported keys are "api_url" and
+// "tenant_id"; the token is deliberately not settable — use `optikk login`.
+func SetContextValue(name, key, value string) error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	entry := cfg.Contexts[name]
+	switch key {
+	case "api_url":
+		entry.APIURL = value
+	case "tenant_id":
+		id, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return fmt.Errorf("tenant_id must be a number, got %q", value)
+		}
+		entry.TenantID = id
+	default:
+		return fmt.Errorf("unknown key %q; supported keys: api_url, tenant_id", key)
+	}
+	cfg.Contexts[name] = entry
+	if cfg.CurrentContext == "" {
+		cfg.CurrentContext = name
+	}
+	return saveConfig(cfg)
+}
+
+// UnsetContextValue clears a single field on a named context.
+func UnsetContextValue(name, key string) error {
+	switch key {
+	case "api_url":
+		return SetContextValue(name, key, "")
+	case "tenant_id":
+		return SetContextValue(name, key, "0")
+	default:
+		return fmt.Errorf("unknown key %q; supported keys: api_url, tenant_id", key)
+	}
+}
+
+// DeleteContext removes a context. When it was the active one, the current
+// context is cleared rather than silently pointing at a deleted entry.
+func DeleteContext(name string) error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	if _, ok := cfg.Contexts[name]; !ok {
+		return fmt.Errorf("no such context %q", name)
+	}
+	delete(cfg.Contexts, name)
+	if cfg.CurrentContext == name {
+		cfg.CurrentContext = ""
+	}
+	return saveConfig(cfg)
+}
+
+// CurrentContextName returns the name of the active context.
+func CurrentContextName() (string, error) {
+	cfg, err := loadConfig()
+	if err != nil {
+		return "", err
+	}
+	name := currentName(cfg)
+	if _, ok := cfg.Contexts[name]; !ok {
+		return "", fmt.Errorf("no context is set; create one with: optikk config init")
+	}
+	return name, nil
 }
 
 // UseContext switches the active context, erroring if it does not exist.

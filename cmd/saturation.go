@@ -10,9 +10,9 @@ import (
 
 func newSaturationCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:         "saturation",
-		Short:       "Inspect database and Kafka saturation",
-		Long:        "Query the saturation API — datastore and Kafka throughput, latency, and lag.",
+		Use:   "saturation",
+		Short: "Inspect database and Kafka saturation",
+		Long:  "Query the saturation API — datastore and Kafka throughput, latency, and lag.",
 	}
 	cmd.AddCommand(
 		newSaturationDBSystemsCmd(app),
@@ -29,9 +29,9 @@ func newSaturationCmd(app *App) *cobra.Command {
 func newSaturationDBSystemsCmd(app *App) *cobra.Command {
 	var from, to string
 	cmd := &cobra.Command{
-		Use:         "db-systems",
-		Short:       "List per-system database saturation summaries",
-		Example:     `  optikk saturation db-systems --from 1h`,
+		Use:     "db-systems",
+		Short:   "List per-system database saturation summaries",
+		Example: `  optikk saturation db-systems --from 1h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {
@@ -69,8 +69,8 @@ func newSaturationDBSystemsCmd(app *App) *cobra.Command {
 func newSaturationJSONCmd(app *App, use, short string, fn func(*queryclient.Client, context.Context, int64, int64) (any, error)) *cobra.Command {
 	var from, to string
 	cmd := &cobra.Command{
-		Use:         use,
-		Short:       short,
+		Use:   use,
+		Short: short,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, out, startMs, endMs, err := setupRange(cmd, app, from, to)
 			if err != nil {

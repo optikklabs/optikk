@@ -12,24 +12,26 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/optikklabs/optikk/internal/httpx"
 )
 
 // Client talks to the query API through /api.
 type Client struct {
-	base     string // e.g. http://localhost:8080/api
+	base     string // e.g. https://api.optikk.in/api
 	token    string
 	tenantID int64
 	http     *http.Client
 }
 
-// New builds a query client. apiBase is the Traefik surface
-// (e.g. http://localhost:8080); the API lives under /api.
+// New builds a query client. apiBase is the API host
+// (e.g. https://api.optikk.in); the API lives under /api.
 func New(apiBase, token string, tenantID int64) *Client {
 	return &Client{
 		base:     strings.TrimRight(apiBase, "/") + "/api",
 		token:    token,
 		tenantID: tenantID,
-		http:     &http.Client{Timeout: 30 * time.Second},
+		http:     httpx.Client(30 * time.Second),
 	}
 }
 
