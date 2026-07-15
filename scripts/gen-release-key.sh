@@ -19,6 +19,11 @@ command -v cosign >/dev/null 2>&1 || {
   exit 1
 }
 
+command -v gh >/dev/null 2>&1 || {
+  echo "error: gh is required to set the repo secrets — https://cli.github.com" >&2
+  exit 1
+}
+
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -32,13 +37,23 @@ cp "${WORK_DIR}/cosign.pub" "$DEST"
 
 echo
 echo "✓ Public key written to ${DEST}"
-echo "  Commit it: git add internal/selfupdate/cosign.pub"
 echo
-echo "Now set the repo secrets (this prints the private key — do not log it):"
+
+# Upload the private half straight from the temp dir. It is never printed and
+# never copied elsewhere; the temp dir is wiped on exit, so once this finishes
+# the only surviving copy is the one GitHub holds.
+echo "Setting COSIGN_PRIVATE_KEY..."
+gh secret set COSIGN_PRIVATE_KEY <"${WORK_DIR}/cosign.key"
+
+echo "Setting COSIGN_PASSWORD — enter the same password you chose above:"
+gh secret set COSIGN_PASSWORD
+
 echo
-echo "  gh secret set COSIGN_PRIVATE_KEY < ${WORK_DIR}/cosign.key"
-echo "  gh secret set COSIGN_PASSWORD"
+echo "✓ Secrets set; the private key is now gone from this machine."
 echo
-echo "Run the gh commands now — ${WORK_DIR} is deleted when this script exits."
-echo "Press enter once the secrets are set."
-read -r _
+echo "Commit the public key BEFORE tagging a release — install.sh fetches"
+echo "cosign.pub at the tag, and the binary embeds it at build time:"
+echo
+echo "  git add internal/selfupdate/cosign.pub"
+echo "  git commit -m 'chore: add release signing key'"
+echo "  git push"
