@@ -16,6 +16,8 @@ Index of the `optikk` CLI (`github.com/optikklabs/optikk`, Go 1.26, Cobra). The 
 
 **Account / onboarding** — `signup.go`, `login.go` (device flow), `auth.go` (password login / status / logout), `onboard.go`, `keys.go`, `users.go`, `demo.go`.
 
+> `login`'s device flow spans two hosts: the API serves `/auth/device/code|token|approve` as POST JSON, but the **approval page is a web app route** (`AppURL/device?user_code=`) — see `deviceVerifyURL`. Anything a browser opens comes from `endpoint.AppURL`; only API calls use the resolved API base.
+
 **Self-service / status** — `update.go` (verified self-update), `status.go` (API reachability + session + update check), `whoami.go` (session identity; `printSession` is shared with `auth status`), `open.go` (web app), `links.go` (docs/support/feedback, declared as data).
 
 **Data (read query API, TTY-aware)** — `traces.go`, `logs.go`, `metrics.go`, `services.go`, `infra.go`, `llm.go`, `saturation.go`, `dashboards.go`, `monitors.go`, `schema.go` (`agent`), plus `data_helpers.go` (client/output/range resolution).
