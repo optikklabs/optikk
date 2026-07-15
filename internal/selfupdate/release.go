@@ -1,8 +1,19 @@
-// Package selfupdate replaces the running optikk binary with a newer signed
-// release. Every download is verified before it is allowed near the filesystem:
-// the checksums file must carry a valid signature from the Optikk release key,
-// and the archive must match its checksum. Verification failures are fatal —
-// there is no unverified path.
+// Package selfupdate replaces the running optikk binary with a newer release.
+//
+// Trust model: authenticity comes from TLS. Assets are fetched from GitHub over
+// a verified HTTPS connection (see internal/httpx), so the connection is what
+// establishes that a download is genuinely GitHub's. The checksum in the release
+// manifest is then verified to catch a corrupt or truncated transfer — it is an
+// integrity check, not an authenticity one, since the manifest travels from the
+// same origin as the archive.
+//
+// This deliberately does not verify a publisher signature. That would add an
+// anchor independent of the download server, but the signing key would live in
+// the same GitHub organisation's CI secrets, so the compromise that defeats TLS
+// here largely defeats the signature too. If that calculus changes — a key held
+// outside GitHub, or an enterprise requirement — signing belongs in Install,
+// between the checksums fetch and the archive fetch, and must fail closed: an
+// optional signature check is worth nothing, because an attacker simply omits it.
 package selfupdate
 
 import (
@@ -38,7 +49,6 @@ type Release struct {
 
 	ArchiveURL   string
 	ChecksumsURL string
-	SignatureURL string
 	ArchiveName  string
 }
 
@@ -129,7 +139,6 @@ func (u *Updater) release(tag string) Release {
 		ArchiveName:  archive,
 		ArchiveURL:   base + "/" + archive,
 		ChecksumsURL: base + "/" + checksums,
-		SignatureURL: base + "/" + checksums + ".sig",
 	}
 }
 

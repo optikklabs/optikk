@@ -23,23 +23,12 @@ const binaryName = "optikk"
 // Install downloads rel, verifies it, and atomically replaces the executable at
 // dest. It returns an error without touching dest unless every check passed.
 //
-// Order matters: the signature authenticates the checksums file, and the
-// checksums file authenticates the archive. Neither check is skippable.
+// Every fetch goes over the hardened TLS client, which is what establishes that
+// the assets are GitHub's; the checksum then catches a corrupt transfer.
 func (u *Updater) Install(ctx context.Context, rel Release, dest string) error {
 	checksums, err := u.download(ctx, rel.ChecksumsURL)
 	if err != nil {
 		return fmt.Errorf("downloading checksums: %w", err)
-	}
-	sig, err := u.download(ctx, rel.SignatureURL)
-	if err != nil {
-		return fmt.Errorf("%w: %s publishes no signature, so it cannot be verified.\n"+
-			"  Releases are signed from the first release cut after signing was enabled;\n"+
-			"  to install an older, unsigned release, download it manually from\n"+
-			"  https://github.com/%s/releases\n"+
-			"  (%v)", ErrVerification, rel.Tag, repo, err)
-	}
-	if err := verifySignature(checksums, sig); err != nil {
-		return err
 	}
 
 	archive, err := u.download(ctx, rel.ArchiveURL)

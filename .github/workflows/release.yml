@@ -17,17 +17,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # cosign signs the checksums file; see the `signs` block in .goreleaser.yaml.
-      # Pinned: the signs block passes v3-era flags, and the installer otherwise
-      # tracks the latest cosign, so an upstream major would break the release.
-      - uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: "v3.1.1"
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}

@@ -31,29 +31,6 @@ archives:
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
 
-# Sign the checksums file with the Optikk release key. The signature
-# authenticates the checksum list, and each checksum authenticates its archive,
-# so signing this one file covers every artifact. `optikk update` verifies both
-# links of that chain against the public key embedded at
-# internal/selfupdate/cosign.pub before it will install anything.
-signs:
-  - id: checksums
-    cmd: cosign
-    artifacts: checksum
-    signature: "${artifact}.sig"
-    args:
-      - sign-blob
-      - "--key=env://COSIGN_PRIVATE_KEY"
-      # cosign v3 defaults to the Sigstore bundle format, which needs --bundle
-      # and carries verification material we have no use for. We want the plain
-      # detached signature: a base64 ECDSA blob that install.sh checks with
-      # `cosign verify-blob` and `optikk update` checks with crypto/ecdsa.
-      - "--use-signing-config=false"
-      - "--new-bundle-format=false"
-      - "--output-signature=${signature}"
-      - "${artifact}"
-      - "--yes"
-
 changelog:
   sort: asc
   filters:

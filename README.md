@@ -9,9 +9,9 @@ macOS and Linux (amd64/arm64), installs to `/usr/local/bin`:
 curl -fsSL https://optikk.in/install.sh | sh
 ```
 
-The script ([install.sh](install.sh)) downloads the latest [GitHub Release](https://github.com/optikklabs/optikk/releases) tarball for your platform, verifies its checksum, and — when `cosign` is installed — verifies the release signature. Use `OPTIKK_VERSION=v<x.y.z>` to pin a version and `OPTIKK_INSTALL_DIR` to change the destination — or grab a release tarball manually.
+The script ([install.sh](install.sh)) downloads the latest [GitHub Release](https://github.com/optikklabs/optikk/releases) tarball for your platform over HTTPS and verifies its checksum. Use `OPTIKK_VERSION=v<x.y.z>` to pin a version and `OPTIKK_INSTALL_DIR` to change the destination — or grab a release tarball manually.
 
-Once installed, `optikk update` keeps itself current and always verifies the release signature, using the public key compiled into the binary.
+Once installed, `optikk update` keeps itself current.
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ Optikk is a hosted service: the CLI talks to `https://api.optikk.in` by default,
 
 ### Getting Around
 - `optikk status` - Is the API reachable, am I signed in, is there an update?
-- `optikk update` - Update to the latest signed release (`--check` to only report; exits non-zero when an update exists).
+- `optikk update` - Update to the latest release (`--check` to only report; exits non-zero when an update exists).
 - `optikk open [page]` - Open the web app (`traces`, `logs`, `dashboards`, …).
 - `optikk docs` / `support` / `feedback` - Open documentation, support, or file an issue.
 

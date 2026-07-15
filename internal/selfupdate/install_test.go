@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -43,9 +42,9 @@ func tarGz(t *testing.T, name string, contents []byte) []byte {
 	return buf.Bytes()
 }
 
-// newFakeRelease serves a signed release and returns an Updater pointed at it.
+// newFakeRelease serves a release and returns an Updater pointed at it.
 // mutate can corrupt an asset before it is served, to exercise failure paths.
-func newFakeRelease(t *testing.T, priv *ecdsa.PrivateKey, tag string, mutate func(assets map[string][]byte)) *Updater {
+func newFakeRelease(t *testing.T, tag string, mutate func(assets map[string][]byte)) *Updater {
 	t.Helper()
 	version := strings.TrimPrefix(tag, "v")
 	archiveName := "optikk_" + version + "_" + runtime.GOOS + "_" + runtime.GOARCH + ".tar.gz"
@@ -56,9 +55,8 @@ func newFakeRelease(t *testing.T, priv *ecdsa.PrivateKey, tag string, mutate fun
 	checksums := []byte(hex.EncodeToString(sum[:]) + "  " + archiveName + "\n")
 
 	assets := map[string][]byte{
-		archiveName:            archive,
-		checksumsName:          checksums,
-		checksumsName + ".sig": sign(t, priv, checksums),
+		archiveName:   archive,
+		checksumsName: checksums,
 	}
 	if mutate != nil {
 		mutate(assets)
@@ -85,8 +83,7 @@ func newFakeRelease(t *testing.T, priv *ecdsa.PrivateKey, tag string, mutate fun
 }
 
 func TestInstallReplacesTheBinary(t *testing.T) {
-	priv := signingKey(t)
-	updater := newFakeRelease(t, priv, "v9.9.9", nil)
+	updater := newFakeRelease(t, "v9.9.9", nil)
 
 	dest := filepath.Join(t.TempDir(), "optikk")
 	if err := os.WriteFile(dest, []byte("old binary"), 0o755); err != nil {
@@ -122,8 +119,7 @@ func TestInstallReplacesTheBinary(t *testing.T) {
 
 // A tampered archive must leave the existing binary untouched.
 func TestInstallRejectsTamperedArchiveAndLeavesBinaryIntact(t *testing.T) {
-	priv := signingKey(t)
-	updater := newFakeRelease(t, priv, "v9.9.9", func(assets map[string][]byte) {
+	updater := newFakeRelease(t, "v9.9.9", func(assets map[string][]byte) {
 		for name := range assets {
 			if strings.HasSuffix(name, ".tar.gz") {
 				assets[name] = tarGz(t, binaryName, []byte("#!/bin/sh\necho PWNED\n"))
@@ -159,60 +155,6 @@ func TestInstallRejectsTamperedArchiveAndLeavesBinaryIntact(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Errorf("failed update left %d files in the install dir, want 1", len(entries))
-	}
-}
-
-// Substituting the checksums file must fail even though it is self-consistent:
-// the signature is over the original.
-func TestInstallRejectsSubstitutedChecksums(t *testing.T) {
-	priv := signingKey(t)
-	updater := newFakeRelease(t, priv, "v9.9.9", func(assets map[string][]byte) {
-		evil := tarGz(t, binaryName, []byte("#!/bin/sh\necho PWNED\n"))
-		sum := sha256.Sum256(evil)
-		for name := range assets {
-			switch {
-			case strings.HasSuffix(name, ".tar.gz"):
-				assets[name] = evil
-			case strings.HasSuffix(name, "checksums.txt"):
-				assets[name] = []byte(hex.EncodeToString(sum[:]) + "  " +
-					strings.TrimSuffix(name, "_checksums.txt") + "_" + runtime.GOOS + "_" + runtime.GOARCH + ".tar.gz\n")
-			}
-		}
-	})
-
-	dest := filepath.Join(t.TempDir(), "optikk")
-	if err := os.WriteFile(dest, []byte("old binary"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	rel, err := updater.Latest(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := updater.Install(context.Background(), rel, dest); !errors.Is(err, ErrVerification) {
-		t.Fatalf("Install error = %v, want ErrVerification", err)
-	}
-}
-
-func TestInstallRejectsUnsignedRelease(t *testing.T) {
-	priv := signingKey(t)
-	updater := newFakeRelease(t, priv, "v9.9.9", func(assets map[string][]byte) {
-		for name := range assets {
-			if strings.HasSuffix(name, ".sig") {
-				delete(assets, name)
-			}
-		}
-	})
-
-	dest := filepath.Join(t.TempDir(), "optikk")
-	if err := os.WriteFile(dest, []byte("old binary"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	rel, err := updater.Latest(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := updater.Install(context.Background(), rel, dest); err == nil {
-		t.Fatal("Install accepted a release with no signature")
 	}
 }
 

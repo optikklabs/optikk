@@ -25,10 +25,10 @@ func newUpdateCmd(app *App) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Update optikk to the latest signed release",
-		Long: "Downloads the latest release, verifies its signature and checksum against the\n" +
-			"Optikk release key, and replaces the running binary. A download that fails\n" +
-			"either check is discarded, never installed.",
+		Short: "Update optikk to the latest release",
+		Long: "Downloads the latest release from GitHub over HTTPS, checks it against the\n" +
+			"release checksums, and replaces the running binary. A download that fails\n" +
+			"the checksum is discarded, never installed.",
 		Args: cobra.NoArgs,
 		Example: "  optikk update\n" +
 			"  optikk update --check\n" +

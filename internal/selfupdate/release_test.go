@@ -45,10 +45,8 @@ func TestReleaseAssetNames(t *testing.T) {
 	if rel.ArchiveName != want {
 		t.Errorf("ArchiveName = %q, want %q", rel.ArchiveName, want)
 	}
-	if rel.SignatureURL != rel.ChecksumsURL+".sig" {
-		t.Errorf("SignatureURL = %q, want %q", rel.SignatureURL, rel.ChecksumsURL+".sig")
-	}
-	for _, url := range []string{rel.ArchiveURL, rel.ChecksumsURL, rel.SignatureURL} {
+	// https is what authenticates these downloads — see the package doc.
+	for _, url := range []string{rel.ArchiveURL, rel.ChecksumsURL} {
 		if got := url[:8]; got != "https://" {
 			t.Errorf("release asset URL %q is not https", url)
 		}

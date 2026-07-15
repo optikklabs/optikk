@@ -27,7 +27,7 @@ Index of the `optikk` CLI (`github.com/optikklabs/optikk`, Go 1.26, Cobra). The 
 - `config` — load/merge config file + `OPTIKK_*` env + flags.
 - `endpoint` — the hosted service URLs (`APIURL`/`AppURL`/`SiteURL`/`DocsURL`) and `Resolve` (flag/env → context → default). **HTTPS-only: plaintext URLs are rejected, not downgraded.** `DocsURL` is a separate host — `optikk.in/docs` does not exist.
 - `httpx` — the one place transport security is stated: TLS 1.2+, system roots, verification never disabled. Used by every outbound call.
-- `selfupdate` — resolves, verifies, and installs releases. `release.go` (GitHub API + semver), `verify.go` (cosign signature over checksums, then checksum over archive; fails closed), `install.go` (extract + atomic same-dir rename). `cosign.pub` is the embedded release key — see `scripts/gen-release-key.sh`.
+- `selfupdate` — resolves, verifies, and installs releases. `release.go` (GitHub API + semver), `verify.go` (checksum over archive; fails closed), `install.go` (extract + atomic same-dir rename). **Trust model:** TLS authenticates the download (assets are GitHub's); the checksum only catches corruption, since the manifest shares the archive's origin. Releases are deliberately unsigned — see the `release.go` package doc for the reasoning and for where signing would slot in.
 - `browser` — opens URLs (best-effort, non-fatal).
 - `apiclient` — auth/signup/device/onboarding client + token store (`~/.optikk/config.json` contexts; `SaveToken`/`LoadToken`/`ClearToken`, plus `SetContextValue`/`UnsetContextValue`/`DeleteContext`/`CurrentContextName`). `Ping` hits the query service's root `/health` (outside the `/api` surface). `SignupRequest` carries `accepted_terms` (server requires it); `signup.go` confirms Terms/Privacy consent interactively or via `--accept-terms`.
 - `queryclient` — typed query-API client, one file per domain (traces/logs/metrics/services/infra/llm/saturation/dashboards/monitors + `client.go`).
@@ -35,7 +35,9 @@ Index of the `optikk` CLI (`github.com/optikklabs/optikk`, Go 1.26, Cobra). The 
 
 ## Releases
 
-Tagging `v*` runs `.github/workflows/release.yml` → goreleaser. The `signs` block has cosign sign `checksums.txt` with the release key (`COSIGN_PRIVATE_KEY`/`COSIGN_PASSWORD` secrets). `optikk update` and `install.sh` both verify that signature before installing. Asset names are duplicated across `.goreleaser.yaml`, `install.sh`, and `selfupdate/release.go` — change them together.
+Tagging `v*` runs `.github/workflows/release.yml` → goreleaser. Nothing else triggers CI: pushing to `main` runs no workflow. Releases are unsigned; `optikk update` and `install.sh` both rely on HTTPS for authenticity and the checksum for integrity. Asset names are duplicated across `.goreleaser.yaml`, `install.sh`, and `selfupdate/release.go` — change them together.
+
+`install.sh` has no staging: `optikk.in/install.sh` redirects to `raw.githubusercontent.com/.../main/install.sh`, so a push to `main` ships it to users immediately.
 
 ## Other
 

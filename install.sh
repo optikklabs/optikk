@@ -53,30 +53,10 @@ curl -fsSL -o "${TMP_DIR}/${ARCHIVE}" "${BASE_URL}/${ARCHIVE}" ||
 curl -fsSL -o "${TMP_DIR}/${CHECKSUMS}" "${BASE_URL}/${CHECKSUMS}" ||
   fail "download failed: ${BASE_URL}/${CHECKSUMS}"
 
-# Verify the checksums file's signature when cosign is available. The signature
-# is what makes the checksums trustworthy; without cosign we can still detect a
-# corrupt download below, but not a substituted one. `optikk update` always
-# verifies, because it has the public key compiled in.
-if command -v cosign >/dev/null 2>&1; then
-  # -fsL, not -fsSL: a missing signature is expected on releases cut before
-  # signing was enabled, and the `else` below reports it in our own words. With
-  # -S curl also prints its own 404 first, which reads like the install failed.
-  if curl -fsL -o "${TMP_DIR}/${CHECKSUMS}.sig" "${BASE_URL}/${CHECKSUMS}.sig" &&
-    curl -fsL -o "${TMP_DIR}/cosign.pub" "https://raw.githubusercontent.com/${REPO}/${TAG}/internal/selfupdate/cosign.pub"; then
-    cosign verify-blob \
-      --key "${TMP_DIR}/cosign.pub" \
-      --signature "${TMP_DIR}/${CHECKSUMS}.sig" \
-      "${TMP_DIR}/${CHECKSUMS}" >/dev/null 2>&1 ||
-      fail "signature verification failed for ${CHECKSUMS} — refusing to install"
-    echo "Verified release signature."
-  else
-    echo "note: ${TAG} has no published signature; falling back to checksum only" >&2
-  fi
-else
-  echo "note: cosign not found — verifying the checksum only." >&2
-  echo "      Install cosign to verify the release signature: https://docs.sigstore.dev/cosign/installation/" >&2
-fi
-
+# The archive is authenticated by TLS: curl verifies GitHub's certificate above,
+# so the bytes are known to be GitHub's. The checksum below then catches a
+# corrupt or truncated transfer. It is not a second authenticity check —
+# checksums.txt comes from the same origin as the archive.
 if command -v sha256sum >/dev/null 2>&1; then
   SHA_CMD="sha256sum"
 elif command -v shasum >/dev/null 2>&1; then
