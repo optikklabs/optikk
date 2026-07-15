@@ -44,6 +44,12 @@ signs:
     args:
       - sign-blob
       - "--key=env://COSIGN_PRIVATE_KEY"
+      # cosign v3 defaults to the Sigstore bundle format, which needs --bundle
+      # and carries verification material we have no use for. We want the plain
+      # detached signature: a base64 ECDSA blob that install.sh checks with
+      # `cosign verify-blob` and `optikk update` checks with crypto/ecdsa.
+      - "--use-signing-config=false"
+      - "--new-bundle-format=false"
       - "--output-signature=${signature}"
       - "${artifact}"
       - "--yes"

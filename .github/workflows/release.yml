@@ -18,7 +18,11 @@ jobs:
         with:
           go-version-file: go.mod
       # cosign signs the checksums file; see the `signs` block in .goreleaser.yaml.
+      # Pinned: the signs block passes v3-era flags, and the installer otherwise
+      # tracks the latest cosign, so an upstream major would break the release.
       - uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v3.1.1"
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
