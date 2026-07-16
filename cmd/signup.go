@@ -36,6 +36,12 @@ func newSignupCmd(app *App) *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
+			if res.Message != "" {
+				fmt.Fprintf(out, "✓ %s\n", res.Message)
+				fmt.Fprintf(out, "\nOnce verified, run `optikk login` to authenticate this device.\n")
+				return nil
+			}
+
 			fmt.Fprintf(out, "✓ Account created\n")
 			fmt.Fprintf(out, "  Tenant:    %s (id %d)\n", res.Tenant.Name, res.Tenant.ID)
 			fmt.Fprintf(out, "  API key: %s\n", res.APIKey)
@@ -90,8 +96,10 @@ func signupInteractive(cmd *cobra.Command, client *apiclient.Client, apiBase str
 	if err != nil {
 		return apiclient.SignupResult{}, endpoint.HintUnreachable(apiBase, fmt.Errorf("signup failed: %w", err))
 	}
-	if err := apiclient.SaveToken(apiBase, res.AccessToken); err != nil {
-		return apiclient.SignupResult{}, err
+	if res.AccessToken != "" {
+		if err := apiclient.SaveToken(apiBase, res.AccessToken); err != nil {
+			return apiclient.SignupResult{}, err
+		}
 	}
 	return res, nil
 }

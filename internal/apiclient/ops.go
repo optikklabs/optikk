@@ -31,6 +31,7 @@ type SignupRequest struct {
 type SignupResult struct {
 	AccessToken string `json:"accessToken"`
 	APIKey      string `json:"api_key"`
+	Message     string `json:"message"`
 	Tenant      struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
