@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/optikklabs/optikk/internal/clierr"
 	"github.com/optikklabs/optikk/internal/clitime"
 	"github.com/optikklabs/optikk/internal/queryclient"
 	"github.com/spf13/cobra"
@@ -177,8 +178,10 @@ func newMonitorsDeleteCmd(app *App) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := mustParseInt64(args[0])
-			if !yes && !app.AgentMode {
-				return fmt.Errorf("refusing to delete without --yes flag (monitor %d)", id)
+			if !yes {
+				return clierr.New(clierr.Usage,
+					fmt.Sprintf("refusing to delete monitor %d without confirmation", id),
+					"re-run with --yes")
 			}
 			client, err := resolveClient(app)
 			if err != nil {

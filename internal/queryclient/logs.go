@@ -2,6 +2,8 @@ package queryclient
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/optikklabs/optikk/internal/dsl"
@@ -77,4 +79,14 @@ func (c *Client) LogTrend(ctx context.Context, req LogsRangeRequest) (any, error
 		return nil, err
 	}
 	return resp, nil
+}
+
+// LogsByTrace returns every log emitted within a trace, oldest first.
+func (c *Client) LogsByTrace(ctx context.Context, traceID string, limit int) ([]Log, error) {
+	var logs []Log
+	path := fmt.Sprintf("/v1/logs/trace/%s?limit=%d", url.PathEscape(traceID), limit)
+	if err := c.do(ctx, "GET", path, nil, &logs); err != nil {
+		return nil, err
+	}
+	return logs, nil
 }

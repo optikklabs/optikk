@@ -33,3 +33,30 @@ team_id: 42
 		t.Fatalf("tenant_id = %d, want YAML value", cfg.TenantID)
 	}
 }
+
+func TestOptikkAgentEnv(t *testing.T) {
+	// Point Load at an empty file so the developer's real ~/.optikk config
+	// cannot leak into the test.
+	path := filepath.Join(t.TempDir(), "optikk.yaml")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("OPTIKK_AGENT", "1")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.AgentMode {
+		t.Fatal("AgentMode = false, want true from OPTIKK_AGENT=1")
+	}
+
+	t.Setenv("OPTIKK_AGENT", "not-a-bool")
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AgentMode {
+		t.Fatal("AgentMode = true, want false for an unparseable OPTIKK_AGENT")
+	}
+}

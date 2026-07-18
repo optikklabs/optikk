@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/optikklabs/optikk/internal/clierr"
 	"github.com/optikklabs/optikk/internal/selfupdate"
 	"github.com/spf13/cobra"
 )
@@ -82,7 +83,13 @@ func runUpdate(cmd *cobra.Command, app *App, opts updateOptions) error {
 		return err
 	}
 
-	if !opts.assumeYes && !app.AgentMode {
+	if !opts.assumeYes {
+		// Replacing the binary is destructive: agents and non-TTY callers must
+		// confirm explicitly with --yes rather than being prompted (or worse,
+		// silently waved through).
+		if app.AgentMode || !stdinIsTerminal(cmd) {
+			return clierr.New(clierr.Usage, "confirmation required to replace the binary", "re-run with --yes")
+		}
 		ok, err := confirmUpdate(cmd, rel.Version, dest)
 		if err != nil {
 			return err

@@ -48,19 +48,6 @@ func (c *Client) Signup(ctx context.Context, req SignupRequest) (SignupResult, e
 	return res, nil
 }
 
-// OnboardingStatus is the response of GET /v1/onboarding/status (tenant-scoped).
-type OnboardingStatus struct {
-	ID     int64  `json:"id"`
-	APIKey string `json:"api_key"`
-}
-
-// GetOnboardingStatus reports collector provisioning + first-data state.
-func (c *Client) GetOnboardingStatus(ctx context.Context) (OnboardingStatus, error) {
-	var st OnboardingStatus
-	err := c.do(ctx, "GET", "/v1/onboarding/status", nil, &st)
-	return st, err
-}
-
 // RotateAPIKey issues a fresh key for the caller's tenant (tenant-admin only).
 func (c *Client) RotateAPIKey(ctx context.Context) (Tenant, error) {
 	var t Tenant
@@ -114,25 +101,36 @@ type Tenant struct {
 	APIKey string `json:"api_key"`
 }
 
-// CreateUserRequest is the body for POST /v1/users.
+// CreateUserRequest is the body for POST /v1/users. The tenant is the
+// caller's own (from the session); it cannot be chosen. An empty Password
+// makes the server email the user a set-password link instead.
 type CreateUserRequest struct {
 	Email    string `json:"email"`
 	Name     string `json:"name"`
-	Password string `json:"password"`
+	Password string `json:"password,omitempty"`
 	Role     string `json:"role,omitempty"`
+}
+
+// User is the user result surfaced by /v1/users (subset we surface).
+type User struct {
+	ID       int64  `json:"id"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Role     string `json:"role"`
+	Active   bool   `json:"active"`
 	TenantID int64  `json:"tenantId"`
 }
 
-// User is the created-user result (subset we surface).
-type User struct {
-	ID    int64  `json:"id"`
-	Email string `json:"email"`
-	Name  string `json:"name"`
-}
-
-// CreateUser adds a user assigned to a tenant (admin-gated).
+// CreateUser adds a user to the caller's tenant (admin-gated).
 func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, error) {
 	var u User
 	err := c.do(ctx, "POST", "/v1/users", req, &u)
 	return u, err
+}
+
+// ListUsers returns the caller's tenant members (admin-gated).
+func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
+	var users []User
+	err := c.do(ctx, "GET", "/v1/users", nil, &users)
+	return users, err
 }

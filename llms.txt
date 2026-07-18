@@ -1,0 +1,36 @@
+# Optikk
+
+> Optikk is an OpenTelemetry-native observability platform: traces, logs,
+> metrics, dashboards, monitors, and LLM observability, queried through a web
+> app, an HTTP API, and the `optikk` CLI. AI coding agents can drive the full
+> lifecycle — signup, team onboarding, instrumentation, and issue
+> investigation — through the CLI alone.
+
+## Getting started (agents)
+
+Install the CLI, then follow the agent guide:
+
+    curl -fsSL https://optikk.in/install.sh | sh
+    optikk agent setup --print   # the full guide for AI agents
+
+- Agent guide: https://optikk.in/agents.md
+- Machine-readable command tree: `optikk agent schema`
+- Always pass `--agent`: JSON on stdout, a JSON error envelope on stderr,
+  taxonomized exit codes (0 ok · 2 usage · 3 auth · 4 network · 5 api).
+- Signup requires the human's explicit consent to https://optikk.in/terms —
+  agents must ask before passing `--accept-terms`.
+
+## Key flows
+
+- Onboard: `optikk onboard --agent --email … --password … --name … --org … --accept-terms`
+  → returns the ingest API key + OTEL_EXPORTER_OTLP_* pair → instrument →
+  loop `optikk verify --agent --from 15m` until exit 0.
+- Investigate: `services list` → `errors list` → `traces get` /
+  `traces critical-path` → `logs trace <trace-id>` → `errors latest <group-id>`.
+- Team: `optikk users add dev@example.com` (emails a set-password link).
+
+## Links
+
+- Web app: https://app.optikk.in
+- Docs: https://docs.optikk.dev
+- Support: https://optikk.in/support

@@ -1,0 +1,61 @@
+# Operating Optikk with the optikk CLI
+
+Optikk is an OpenTelemetry-native observability platform (https://optikk.in).
+This guide teaches an AI coding agent to drive the full lifecycle through the
+`optikk` CLI: account signup, team onboarding, instrumentation, and
+investigating production issues.
+
+If `optikk` is not installed yet:
+
+    curl -fsSL https://optikk.in/install.sh | sh
+
+## Rules
+
+- Always pass `--agent` (or set `OPTIKK_AGENT=1`). stdout is then data — one
+  JSON document per command. Failures print one JSON envelope on stderr:
+  `{"error":"…","code":"auth","api_code":"UNAUTHORIZED","exit_code":3,"hint":"…"}`.
+- Never parse table output or human prose; branch on exit codes and JSON.
+- Exit codes: {{.ExitCodesLine}}
+- Destructive commands (`dashboards delete`, `monitors delete`, `keys revoke`,
+  `update`) always require `--yes`; agent mode never auto-confirms.
+- The full machine-readable command tree: `optikk agent schema`.
+
+## Authentication
+
+- Headless: `optikk auth login --email … --password …`, or set `OPTIKK_TOKEN`.
+- Human present: `optikk login --agent` emits
+  `{"status":"approval_pending","verification_url":…,"user_code":…}` — relay
+  the URL and code to the user, then the command blocks until they approve.
+- Check the session anytime: `optikk whoami --agent`.
+
+## Onboarding (signup → instrument → verify)
+
+1. Signup requires the user's explicit consent to the Terms of Service
+   (https://optikk.in/terms) and Privacy Policy. Never pass `--accept-terms`
+   on your own — ask the user first and only proceed once they agree.
+2. `optikk onboard --agent --email … --password … --name … --org … --accept-terms`
+   returns `api_key` and `otlp` (`endpoint` + `headers`).
+3. Configure the service's OpenTelemetry exporter with that pair:
+   `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`.
+4. Generate traffic, then loop `optikk verify --agent --from 15m` until it
+   exits 0 — the JSON report shows per-signal record counts.
+
+## Investigation playbooks
+{{range .Examples}}
+### {{.Goal}}
+{{range .Steps}}
+- `{{.}}`{{end}}
+{{end}}
+
+## Team & keys
+
+- Add a teammate (admin only): `optikk users add dev@example.com --role member`
+  — without `--password`, the server emails them a set-password link.
+- List members: `optikk users list --agent`.
+- Rotate the ingest key: `optikk keys rotate --agent` (the old key can keep
+  working for up to 5 minutes).
+
+## More
+
+- Documentation: {{.DocsURL}}
+- Command tree with every flag: `optikk agent schema`

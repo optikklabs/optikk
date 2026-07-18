@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/optikklabs/optikk/internal/clierr"
 	"github.com/optikklabs/optikk/internal/httpx"
 )
 
@@ -22,7 +23,7 @@ func Ping(ctx context.Context, apiBase string) error {
 	}
 	resp, err := httpx.Client(10 * time.Second).Do(req)
 	if err != nil {
-		return err
+		return clierr.Unreachable(apiBase, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

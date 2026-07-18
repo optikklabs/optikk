@@ -17,10 +17,11 @@ type Config struct {
 	Verbose bool `mapstructure:"verbose" yaml:"verbose"`
 
 	// Data-CLI fields (Datadog Pup-style).
-	ApiURL   string `mapstructure:"api_url" yaml:"api_url"` // OPTIKK_API_URL
-	Output   string `mapstructure:"output" yaml:"output"`   // OPTIKK_OUTPUT (table|json|yaml)
-	TenantID int64  `mapstructure:"team_id" yaml:"team_id"` // OPTIKK_TENANT_ID
-	Token    string `mapstructure:"-" yaml:"-"`             // OPTIKK_TOKEN (runtime only)
+	ApiURL    string `mapstructure:"api_url" yaml:"api_url"` // OPTIKK_API_URL
+	Output    string `mapstructure:"output" yaml:"output"`   // OPTIKK_OUTPUT (table|json|yaml)
+	TenantID  int64  `mapstructure:"team_id" yaml:"team_id"` // OPTIKK_TENANT_ID
+	Token     string `mapstructure:"-" yaml:"-"`             // OPTIKK_TOKEN (runtime only)
+	AgentMode bool   `mapstructure:"-" yaml:"-"`             // OPTIKK_AGENT (runtime only)
 }
 
 // Load reads config from the given file (or the default search paths) plus
@@ -87,5 +88,10 @@ func applyEnv(cfg *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv("OPTIKK_TOKEN")); v != "" {
 		cfg.Token = v
+	}
+	if v := strings.TrimSpace(os.Getenv("OPTIKK_AGENT")); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			cfg.AgentMode = parsed
+		}
 	}
 }

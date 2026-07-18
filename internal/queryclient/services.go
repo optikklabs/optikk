@@ -67,36 +67,6 @@ func (c *Client) ListFleetServices(ctx context.Context, startMs, endMs int64) ([
 	return resp, nil
 }
 
-// ErrorGroup mirrors query/internal/modules/services/errors.ErrorGroup.
-type ErrorGroup struct {
-	GroupID        string `json:"group_id"`
-	ServiceName    string `json:"service_name"`
-	OperationName  string `json:"operation_name"`
-	StatusMessage  string `json:"status_message"`
-	HTTPStatusCode int    `json:"http_status_code"`
-	ErrorCount     int64  `json:"error_count"`
-	SampleTraceID  string `json:"sample_trace_id"`
-}
-
-// ErrorGroupsResponse wraps paginated error groups.
-type ErrorGroupsResponse struct {
-	Results  []ErrorGroup `json:"results"`
-	PageInfo PageInfo     `json:"pageInfo"`
-}
-
-// ListErrorGroups returns aggregated error groups for the range.
-func (c *Client) ListErrorGroups(ctx context.Context, startMs, endMs int64, service string, limit int) (*ErrorGroupsResponse, error) {
-	path := fmt.Sprintf("/v1/errors/groups?startTime=%d&endTime=%d&limit=%d", startMs, endMs, limit)
-	if service != "" {
-		path += "&service=" + service
-	}
-	var resp ErrorGroupsResponse
-	if err := c.do(ctx, "GET", path, nil, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
 // ServiceSummary returns the RED summary for one service (analytical JSON).
 func (c *Client) ServiceSummary(ctx context.Context, startMs, endMs int64, service string) (any, error) {
 	path := fmt.Sprintf("/v1/spans/red/summary?startTime=%d&endTime=%d&service=%s", startMs, endMs, service)

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/optikklabs/optikk/internal/clierr"
 	"github.com/optikklabs/optikk/internal/httpx"
 )
 
@@ -38,6 +39,7 @@ type envelope struct {
 	Success bool            `json:"success"`
 	Data    json.RawMessage `json:"data"`
 	Error   *struct {
+		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
 }
@@ -63,7 +65,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return clierr.Unreachable(c.base, err)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
@@ -73,11 +75,11 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, strings.TrimSpace(string(raw)))
 	}
 	if resp.StatusCode/100 != 2 || !env.Success {
-		msg := resp.Status
-		if env.Error != nil && env.Error.Message != "" {
-			msg = env.Error.Message
+		code, msg := "", ""
+		if env.Error != nil {
+			code, msg = env.Error.Code, env.Error.Message
 		}
-		return fmt.Errorf("%s %s: %s", method, path, msg)
+		return clierr.FromAPI(method, path, resp.StatusCode, code, msg)
 	}
 	if out != nil {
 		return json.Unmarshal(env.Data, out)

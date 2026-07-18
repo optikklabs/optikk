@@ -18,8 +18,9 @@ func newWhoamiCmd(app *App) *cobra.Command {
 		Args:    cobra.NoArgs,
 		Aliases: []string{"me"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			printSession(cmd.OutOrStdout(), app, "")
-			return nil
+			return writeResult(cmd, app, currentSession(app).doc(), func(w io.Writer) {
+				printSession(w, app, "")
+			})
 		},
 	}
 }
@@ -73,6 +74,35 @@ func currentSession(app *App) session {
 // Expired reports whether the cached token's own expiry has passed.
 func (s session) Expired() bool {
 	return !s.Expiry.IsZero() && time.Now().After(s.Expiry)
+}
+
+// sessionDoc is the machine-readable session shape shared by whoami,
+// auth status, and status.
+type sessionDoc struct {
+	Authenticated bool   `json:"authenticated"`
+	Source        string `json:"source,omitempty"`
+	API           string `json:"api"`
+	Email         string `json:"email,omitempty"`
+	TenantID      int64  `json:"tenant_id,omitempty"`
+	ExpiresAt     string `json:"expires_at,omitempty"`
+	Expired       bool   `json:"expired"`
+}
+
+func (s session) doc() sessionDoc {
+	d := sessionDoc{
+		Authenticated: s.Authenticated,
+		API:           s.APIBase,
+		Email:         s.Email,
+		TenantID:      s.TenantID,
+		Expired:       s.Expired(),
+	}
+	if s.Authenticated {
+		d.Source = s.Source
+	}
+	if !s.Expiry.IsZero() {
+		d.ExpiresAt = s.Expiry.Format(time.RFC3339)
+	}
+	return d
 }
 
 // printSession renders the shared identity block used by `whoami`, `status`,

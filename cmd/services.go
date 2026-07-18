@@ -112,7 +112,7 @@ func newServicesErrorsCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := client.ListErrorGroups(cmd.Context(), startMs, endMs, service, limit)
+			resp, err := client.ListErrorGroups(cmd.Context(), startMs, endMs, service, limit, "")
 			if err != nil {
 				return err
 			}

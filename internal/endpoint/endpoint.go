@@ -61,24 +61,3 @@ func validate(raw string) (string, error) {
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
-// HintUnreachable wraps a dial failure with an actionable next step, so a
-// network or DNS problem reads as one instead of a raw transport error.
-// Anything that is not a dial failure passes through unchanged.
-func HintUnreachable(apiBase string, err error) error {
-	if err == nil || !isUnreachable(err) {
-		return err
-	}
-	return fmt.Errorf("can't reach %s.\n"+
-		"Check your network connection, then retry. If you are pointing at a custom API,\n"+
-		"confirm the URL with: optikk config show", apiBase)
-}
-
-// isUnreachable reports whether err (or anything it wraps) is a failure to
-// reach the host at all, as opposed to an error the server returned.
-func isUnreachable(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "no such host") ||
-		strings.Contains(msg, "network is unreachable") ||
-		strings.Contains(msg, "i/o timeout")
-}

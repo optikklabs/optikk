@@ -38,7 +38,9 @@ Optikk is a hosted service: the CLI talks to `https://api.optikk.in` by default,
 - `optikk config show` - Print merged config.
 - `optikk config set <key> <value>` / `unset <key>` - Change one field (`api_url`, `tenant_id`) on the active context.
 - `optikk config current-context` / `use-context` / `get-contexts` / `delete-context` - Manage contexts.
-- `optikk signup` - Create account & tenant, print ingest api_key.
+- `optikk signup` / `onboard` - Create account & tenant, print ingest api_key + OTLP env pair.
+- `optikk verify` - Confirm telemetry is arriving (exits non-zero when the window is empty).
+- `optikk users add|list` - Invite teammates (no `--password` = set-password email) and list members.
 - `optikk login` - Browser device-authorization login.
 - `optikk auth login|status|logout` - Password login / check session / logout.
 - `optikk whoami` - Show the account, tenant, and API of the current session.
@@ -52,7 +54,8 @@ Optikk is a hosted service: the CLI talks to `https://api.optikk.in` by default,
 
 ### Data & Query
 - **Traces:** `optikk traces search -q <query>` · `get <id>` · `trend` · `critical-path` · `service-map`
-- **Logs:** `optikk logs search -q <query>` · `facets` · `summary` · `trend`
+- **Logs:** `optikk logs search -q <query>` · `trace <trace-id>` · `facets` · `summary` · `trend`
+- **Errors:** `optikk errors list` · `get <group>` · `traces <group>` · `timeseries <group>` · `latest <group>`
 - **Metrics:** `optikk metrics list` · `query` · `tags`
 - **Services:** `optikk services list` · `topology` · `summary` · `top-endpoints` · `errors`
 - **Infrastructure:** `optikk infra hosts|nodes|pods|cpu|memory`
@@ -60,3 +63,14 @@ Optikk is a hosted service: the CLI talks to `https://api.optikk.in` by default,
 - **Saturation:** `optikk saturation db-systems|db-latency|kafka-topology|kafka-throughput`
 - **Dashboards:** `optikk dashboards list` · `get` · `create` · `update` · `delete`
 - **Monitors:** `optikk monitors list` · `get` · `create` · `update` · `delete` · `mute` · `unmute` · `ack`
+
+## AI Agents
+
+The CLI is built to be driven end-to-end by AI coding agents (Claude Code, Codex, …):
+
+- `optikk agent setup` installs the agent guide into your project as a Claude Code skill (`.claude/skills/optikk/SKILL.md`); `--agents-md` maintains a marked section in `AGENTS.md`; `--print` dumps it. The same guide lives at [AGENTS.md](AGENTS.md) and the discovery entry point is [llms.txt](llms.txt).
+- `--agent` (or `OPTIKK_AGENT=1`): JSON on stdout, a one-line JSON error envelope on stderr, no prompts.
+- Exit codes: `0` ok · `1` error · `2` usage · `3` auth · `4` network unreachable · `5` API error.
+- `optikk agent schema` emits the full command tree, exit codes, and example playbooks as JSON.
+
+**Breaking changes vs. earlier builds:** `--agent` no longer auto-confirms `dashboards/monitors delete` or `update` — pass `--yes`; and `signup`/`onboard` no longer prompt on a non-TTY stdin (pipe-fed answers) — pass all flags instead.

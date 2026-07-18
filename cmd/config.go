@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"io"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
 	"github.com/optikklabs/optikk/internal/endpoint"
@@ -153,6 +154,15 @@ func newConfigInitCmd() *cobra.Command {
 	}
 }
 
+// configShowDoc is the machine-readable active-context report.
+type configShowDoc struct {
+	Context       string `json:"context,omitempty"`
+	APIURL        string `json:"api_url"`
+	APIURLError   string `json:"api_url_error,omitempty"`
+	TenantID      int64  `json:"tenant_id"`
+	Authenticated bool   `json:"authenticated"`
+}
+
 func newConfigShowCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:     "show",
@@ -163,17 +173,25 @@ func newConfigShowCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			w := cmd.OutOrStdout()
+			name, _ := apiclient.CurrentContextName()
+			doc := configShowDoc{Context: name, TenantID: ctx.TenantID, Authenticated: ctx.Token != ""}
 			// Report the effective API, but never fail: `config show` has to stay
 			// usable precisely when the stored URL is the thing that is wrong.
-			apiBase, err := app.API()
-			if err != nil {
-				apiBase = fmt.Sprintf("%s (unusable — %s)", ctx.APIURL, firstLine(err))
+			if apiBase, err := app.API(); err != nil {
+				doc.APIURL = ctx.APIURL
+				doc.APIURLError = firstLine(err)
+			} else {
+				doc.APIURL = apiBase
 			}
-			fmt.Fprintf(w, "api_url:       %s\n", apiBase)
-			fmt.Fprintf(w, "tenant_id:     %d\n", ctx.TenantID)
-			fmt.Fprintf(w, "authenticated: %t\n", ctx.Token != "")
-			return nil
+			return writeResult(cmd, app, doc, func(w io.Writer) {
+				apiLine := doc.APIURL
+				if doc.APIURLError != "" {
+					apiLine = fmt.Sprintf("%s (unusable — %s)", doc.APIURL, doc.APIURLError)
+				}
+				fmt.Fprintf(w, "api_url:       %s\n", apiLine)
+				fmt.Fprintf(w, "tenant_id:     %d\n", doc.TenantID)
+				fmt.Fprintf(w, "authenticated: %t\n", doc.Authenticated)
+			})
 		},
 	}
 }

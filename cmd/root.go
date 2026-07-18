@@ -49,7 +49,12 @@ type rootFlags struct {
 
 // NewRootCmd builds the root command and registers every subcommand.
 func NewRootCmd() *cobra.Command {
-	app := &App{}
+	return newRootCmd(&App{})
+}
+
+// newRootCmd wires the command tree onto a caller-owned App, so Execute can
+// read the resolved agent mode when rendering errors.
+func newRootCmd(app *App) *cobra.Command {
 	f := &rootFlags{}
 
 	root := &cobra.Command{
@@ -78,7 +83,7 @@ func NewRootCmd() *cobra.Command {
 	pf.StringVar(&f.apiURL, "api-url", "", "query API base URL, https only (OPTIKK_API_URL, default "+endpoint.APIURL+")")
 	pf.Int64Var(&f.tenantID, "tenant-id", 0, "tenant context for X-Tenant-Id header (OPTIKK_TENANT_ID)")
 	pf.StringVarP(&f.output, "output", "o", "", "output format: table|json|yaml (auto-detected from TTY)")
-	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, skip confirmations (FORCE_AGENT_MODE)")
+	pf.BoolVar(&f.agentMode, "agent", false, "agent mode: JSON output, no prompts (OPTIKK_AGENT)")
 
 	root.AddCommand(
 		newConfigCmd(app),
@@ -98,7 +103,9 @@ func NewRootCmd() *cobra.Command {
 		newSignupCmd(app),
 		newOnboardCmd(app),
 		newKeysCmd(app),
+		newVerifyCmd(app),
 		newTracesCmd(app),
+		newErrorsCmd(app),
 		newLogsCmd(app),
 		newMetricsCmd(app),
 		newServicesCmd(app),
@@ -107,10 +114,11 @@ func NewRootCmd() *cobra.Command {
 		newSaturationCmd(app),
 		newDashboardsCmd(app),
 		newMonitorsCmd(app),
-		newAgentCmd(),
+		newAgentCmd(app),
 		newUsersCmd(app), // Re-parented from tenant member
 	)
 
+	wireUsageErrors(root)
 	return root
 }
 
@@ -134,7 +142,7 @@ func (a *App) load(cmd *cobra.Command, f *rootFlags) error {
 	if cmd.Flags().Changed("output") {
 		cfg.Output = f.output
 	}
-	a.AgentMode = f.agentMode
+	a.AgentMode = f.agentMode || cfg.AgentMode
 
 	// Resolve the API base once: flag/env → active context → hosted default.
 	// A missing or unreadable context is not fatal; it just means no override.

@@ -1,10 +1,12 @@
 package cmd
 
 import (
-	"fmt"
+	"encoding/json"
+	"io"
 	"time"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
+	"github.com/optikklabs/optikk/internal/clierr"
 	"github.com/optikklabs/optikk/internal/clitime"
 	"github.com/optikklabs/optikk/internal/output"
 	"github.com/optikklabs/optikk/internal/queryclient"
@@ -32,7 +34,8 @@ func resolveToken(app *App) (string, error) {
 	}
 	ctx, err := apiclient.CurrentContext()
 	if err != nil || ctx.Token == "" {
-		return "", fmt.Errorf("not authenticated — run: optikk login\n  (or set OPTIKK_TOKEN env var)")
+		return "", clierr.New(clierr.Auth, "not authenticated",
+			"run: optikk login (or set OPTIKK_TOKEN)")
 	}
 	return ctx.Token, nil
 }
@@ -41,6 +44,28 @@ func resolveToken(app *App) (string, error) {
 func resolveOutput(cmd *cobra.Command, app *App) *output.Writer {
 	format := output.Resolve(app.Cfg.Output, app.AgentMode)
 	return output.New(format, cmd.OutOrStdout())
+}
+
+// writeResult renders a typed result as JSON/YAML per the resolved format, or
+// calls human for table/interactive output. Lifecycle commands use it to keep
+// their human text unchanged while giving agents a parseable document.
+func writeResult(cmd *cobra.Command, app *App, v any, human func(w io.Writer)) error {
+	ow := resolveOutput(cmd, app)
+	switch ow.Format {
+	case output.FormatJSON:
+		return ow.WriteJSON(v)
+	case output.FormatYAML:
+		return ow.WriteYAML(v)
+	default:
+		human(ow.Out)
+		return nil
+	}
+}
+
+// writeNDJSON emits one compact JSON object per line, for commands that
+// report progress before their final result (e.g. the device login flow).
+func writeNDJSON(w io.Writer, v any) {
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 // addRangeFlags registers the shared --from/--to time-range flags.

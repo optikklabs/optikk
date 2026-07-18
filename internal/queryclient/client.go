@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/optikklabs/optikk/internal/clierr"
 	"github.com/optikklabs/optikk/internal/httpx"
 )
 
@@ -40,8 +41,24 @@ type envelope struct {
 	Success bool            `json:"success"`
 	Data    json.RawMessage `json:"data"`
 	Error   *struct {
+		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
+}
+
+// classify turns an API response failure into a typed clierr.Error so exit
+// codes and hints distinguish auth failures from other server errors.
+func classify(method, path string, status int, env *envelope) error {
+	code, msg := "", ""
+	if env.Error != nil {
+		code, msg = env.Error.Code, env.Error.Message
+	}
+	return clierr.FromAPI(method, path, status, code, msg)
+}
+
+// unreachable wraps a transport failure as a network error with a next step.
+func unreachable(base string, err error) error {
+	return clierr.Unreachable(base, err)
 }
 
 // do sends a JSON request and unmarshals the envelope data into out (may be nil).
@@ -68,7 +85,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("connection refused — is the API running at %s? %w", c.base, err)
+		return unreachable(c.base, err)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
@@ -78,11 +95,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, strings.TrimSpace(string(raw)))
 	}
 	if resp.StatusCode/100 != 2 || !env.Success {
-		msg := resp.Status
-		if env.Error != nil && env.Error.Message != "" {
-			msg = env.Error.Message
-		}
-		return fmt.Errorf("%s %s: %s", method, path, msg)
+		return classify(method, path, resp.StatusCode, &env)
 	}
 	if out != nil {
 		return json.Unmarshal(env.Data, out)
@@ -113,7 +126,7 @@ func (c *Client) doRaw(ctx context.Context, method, path string, body any) ([]by
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("connection refused — is the API running at %s? %w", c.base, err)
+		return nil, unreachable(c.base, err)
 	}
 	defer resp.Body.Close()
 	return io.ReadAll(resp.Body)

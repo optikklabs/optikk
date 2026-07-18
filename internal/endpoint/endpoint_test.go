@@ -54,17 +54,3 @@ func TestResolveRejectsInsecureContext(t *testing.T) {
 		t.Errorf("Resolve with insecure context error = %v, want ErrInsecure", err)
 	}
 }
-
-func TestHintUnreachable(t *testing.T) {
-	server := errors.New("401 unauthorized")
-	if got := HintUnreachable(APIURL, server); got != server {
-		t.Errorf("HintUnreachable passed through = %v, want the original error", got)
-	}
-	if got := HintUnreachable(APIURL, nil); got != nil {
-		t.Errorf("HintUnreachable(nil) = %v, want nil", got)
-	}
-	dial := errors.New("dial tcp: connection refused")
-	if got := HintUnreachable(APIURL, dial); got == dial {
-		t.Error("HintUnreachable did not wrap a dial failure")
-	}
-}

@@ -3,14 +3,24 @@ package cmd
 import (
 	"encoding/json"
 
+	"github.com/optikklabs/optikk/internal/agentdocs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 // AgentSchema represents the CLI command structure for AI discoverability.
 type AgentSchema struct {
-	Version  string         `json:"version"`
-	Commands []AgentCommand `json:"commands"`
+	Version       string              `json:"version"`
+	ExitCodes     map[string]string   `json:"exit_codes"`
+	ErrorEnvelope AgentErrorExample   `json:"error_envelope"`
+	Examples      []agentdocs.Example `json:"examples"`
+	Commands      []AgentCommand      `json:"commands"`
+}
+
+// AgentErrorExample documents the stderr envelope agents parse on failure.
+type AgentErrorExample struct {
+	Description string `json:"description"`
+	Example     string `json:"example"`
 }
 
 type AgentCommand struct {
@@ -30,12 +40,12 @@ type AgentFlag struct {
 	Usage     string `json:"usage"`
 }
 
-func newAgentCmd() *cobra.Command {
+func newAgentCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agent",
 		Short: "AI agent integrations",
 	}
-	cmd.AddCommand(newAgentSchemaCmd())
+	cmd.AddCommand(newAgentSchemaCmd(), newAgentSetupCmd(app))
 	return cmd
 }
 
@@ -46,7 +56,13 @@ func newAgentSchemaCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root := cmd.Root()
 			schema := AgentSchema{
-				Version:  "1.0",
+				Version:   "1.1",
+				ExitCodes: agentdocs.ExitCodes(),
+				ErrorEnvelope: AgentErrorExample{
+					Description: "On failure in agent mode, stderr carries one JSON object; the process exit code matches exit_code.",
+					Example:     `{"error":"GET /v1/errors/groups: Not Found","code":"api","api_code":"NOT_FOUND","exit_code":5,"hint":"…"}`,
+				},
+				Examples: agentdocs.Examples(),
 				Commands: extractCommands(root, ""),
 			}
 			enc := json.NewEncoder(cmd.OutOrStdout())

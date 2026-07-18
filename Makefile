@@ -6,7 +6,7 @@ BINARY := optikk
 PKG := github.com/optikklabs/optikk/cmd
 LDFLAGS := -s -w -buildid= -X $(PKG).version=$(VERSION) -X $(PKG).commit=$(COMMIT) -X $(PKG).date=$(DATE)
 
-.PHONY: build install test snapshot size clean
+.PHONY: build install test gen snapshot size clean
 
 build:
 	CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o $(BINARY) .
@@ -17,6 +17,10 @@ install: build
 
 test:
 	go test ./...
+
+# Regenerate files derived from source (AGENTS.md from internal/agentdocs).
+gen:
+	go generate ./...
 
 size: build
 	ls -lh $(BINARY)

@@ -33,10 +33,22 @@ func newLoginCmd(app *App) *cobra.Command {
 
 			verifyURL := deviceVerifyURL(code.UserCode)
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "First, open this page in your browser:\n\n    %s\n\n", verifyURL)
-			fmt.Fprintf(w, "and confirm this code:\n\n    %s\n\n", code.UserCode)
-			browser.Open(verifyURL)
-			fmt.Fprintln(w, "Waiting for approval…")
+			if app.AgentMode {
+				// One NDJSON line before polling, so the agent can relay the
+				// approval URL and code to its human. No browser: the agent's
+				// environment is usually headless.
+				writeNDJSON(w, map[string]any{
+					"status":           "approval_pending",
+					"verification_url": verifyURL,
+					"user_code":        code.UserCode,
+					"expires_in":       code.ExpiresIn,
+				})
+			} else {
+				fmt.Fprintf(w, "First, open this page in your browser:\n\n    %s\n\n", verifyURL)
+				fmt.Fprintf(w, "and confirm this code:\n\n    %s\n\n", code.UserCode)
+				browser.Open(verifyURL)
+				fmt.Fprintln(w, "Waiting for approval…")
+			}
 
 			token, err := pollDeviceToken(cmd.Context(), client, code)
 			if err != nil {
@@ -45,7 +57,11 @@ func newLoginCmd(app *App) *cobra.Command {
 			if err := apiclient.SaveToken(apiBase, token); err != nil {
 				return err
 			}
-			fmt.Fprintf(w, "\n✓ Signed in. Token cached at ~/.optikk/config.json\n")
+			if app.AgentMode {
+				writeNDJSON(w, map[string]any{"status": "authenticated", "token_path": tokenPath})
+				return nil
+			}
+			fmt.Fprintf(w, "\n✓ Signed in. Token cached at %s\n", tokenPath)
 			return nil
 		},
 	}

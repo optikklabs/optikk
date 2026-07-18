@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/optikklabs/optikk/internal/apiclient"
+	"github.com/optikklabs/optikk/internal/clierr"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +22,7 @@ func newAuthCmd(app *App) *cobra.Command {
 	cmd.AddCommand(
 		newAuthLoginCmd(app),
 		newAuthStatusCmd(app),
-		newAuthLogoutCmd(),
+		newAuthLogoutCmd(app),
 	)
 	return cmd
 }
@@ -32,6 +34,11 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 		Short: "Authenticate and cache a session JWT",
 		Long:  "Logs in via POST /api/v1/auth/login, caches the JWT at ~/.optikk/config.json.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if (email == "" || password == "") && !allowPrompt(cmd, app) {
+				return clierr.New(clierr.Usage,
+					"missing required flags for non-interactive login: --email --password",
+					"pass both flags, or use the browser flow: optikk login")
+			}
 			apiBase, err := app.API()
 			if err != nil {
 				return err
@@ -39,15 +46,17 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 			client := apiclient.New(apiBase)
 			token, err := client.Login(cmd.Context(), email, password)
 			if err != nil {
-				return fmt.Errorf("login failed: %w\n\nIs the API running at %s?", err, apiBase)
+				return fmt.Errorf("login failed: %w", err)
 			}
 			if err := apiclient.SaveToken(apiBase, token); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "✓ Authenticated as %s\n", email)
-			fmt.Fprintf(cmd.OutOrStdout(), "  API: %s\n", apiBase)
-			fmt.Fprintf(cmd.OutOrStdout(), "  Token cached at ~/.optikk/config.json\n")
-			return nil
+			doc := authDoc{Status: "authenticated", Email: email, API: apiBase, TokenPath: tokenPath}
+			return writeResult(cmd, app, doc, func(w io.Writer) {
+				fmt.Fprintf(w, "✓ Authenticated as %s\n", email)
+				fmt.Fprintf(w, "  API: %s\n", apiBase)
+				fmt.Fprintf(w, "  Token cached at %s\n", tokenPath)
+			})
 		},
 	}
 	cmd.Flags().StringVar(&email, "email", "", "account email")
@@ -55,18 +64,30 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// tokenPath is where the session JWT is cached, as shown to users and agents.
+const tokenPath = "~/.optikk/config.json"
+
+// authDoc is the machine-readable result of auth login/logout.
+type authDoc struct {
+	Status    string `json:"status"`
+	Email     string `json:"email,omitempty"`
+	API       string `json:"api,omitempty"`
+	TokenPath string `json:"token_path,omitempty"`
+}
+
 func newAuthStatusCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show current authentication status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			printSession(cmd.OutOrStdout(), app, "")
-			return nil
+			return writeResult(cmd, app, currentSession(app).doc(), func(w io.Writer) {
+				printSession(w, app, "")
+			})
 		},
 	}
 }
 
-func newAuthLogoutCmd() *cobra.Command {
+func newAuthLogoutCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
 		Short: "Clear cached authentication",
@@ -74,8 +95,9 @@ func newAuthLogoutCmd() *cobra.Command {
 			if err := apiclient.ClearToken(); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "✓ Logged out (token cleared)")
-			return nil
+			return writeResult(cmd, app, authDoc{Status: "logged_out"}, func(w io.Writer) {
+				fmt.Fprintln(w, "✓ Logged out (token cleared)")
+			})
 		},
 	}
 }
