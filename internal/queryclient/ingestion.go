@@ -6,8 +6,8 @@ import (
 )
 
 // IngestionTotals is the per-signal record counts from /v1/ingestion/summary
-// (subset we surface — the endpoint also reports bytes, projections, and cost
-// inputs the CLI does not need).
+// (subset we surface — the endpoint also reports bytes and other usage facts
+// the CLI does not need).
 type IngestionTotals struct {
 	Logs             uint64 `json:"logs"`
 	Spans            uint64 `json:"spans"`
